@@ -51,19 +51,22 @@ type public testSuite() =
 //        let rela2 = ignore(new Relay(5000,100,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,4096,4096))
 //        
 //        ignore(Async.StartAsTask(rela2))
-        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,2,4096,4096,false,true)))
-        let t2 = new Thread( fun () -> ignore(new Relay(5000,2,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,4096,4096,true,false)))
+        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,1,1024,2048,false,false)))
+        let t2 = new Thread( fun () -> ignore(new Relay(5000,1,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,1024,2048,false,false)))
         
         let t3 = new Thread (x.StartClient)
         let t4 = new Thread(x.StartClient2)
-        
+
+        let t5  = new Thread(x.StartServer)
+
+        t5.Start()        
         t1.Start() 
         t2.Start()
-     //   Thread.Sleep(6000)
         t3.Start()
+        Thread.Sleep(1000)
         t4.Start()
         
-   //     x.StartServer()
+        t5.Join()
         t3.Join()
         t4.Join()
  
@@ -100,7 +103,7 @@ type public testSuite() =
         let remoteep = new System.Net.IPEndPoint(Dns.GetHostAddresses("127.0.0.1").[0],4000)
 
         clientSocket.Connect(remoteep)
-  //      Thread.Sleep(7000)
+      //  Thread.Sleep(7000)
         printfn "sending file"
         clientSocket.SendFile(@"c:\test\1.exe")
         clientSocket.Shutdown(SocketShutdown.Both)

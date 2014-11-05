@@ -151,51 +151,51 @@ let argValidity()=
     valid
 
 [<EntryPoint>]
-//let main argv =
-//    let ts = new testSuite()
-//    ts.data_integrity_test()
-//    0
-
-let main argv = 
-    ignore(processArgs(argv))
-    if (help =false) && (argValidity() = true) then
-        
-        if (encryptReceive = false) && (decryptReceive = false) then
-            // multi relay only, no encryption        
-            
-            ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
-            
-        else if (listenTcpCount = 1) && (forwardTcpCount = 1) then
-            if (readFakeRequest = false) && (sendFakeRequest = false) then
-            // encrypted relay only, no multi relay
-                ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))
-            else
-                let intermediatePort = getAvilablePort()
-           //     printfn "port selected: %i" intermediatePort
-                
-                if sendFakeRequest = true then
-
-                    let t2 = new Thread(fun() -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,encryptReceive)))
-                    t2.Start()
-                    ignore(new Relay(intermediatePort,1,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
-                else
-                    ignore(new Relay(listenOnPort,1,Dns.GetHostAddresses(forwardAddress).[0],intermediatePort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
-                    
-                    let t2 = new Thread(fun() -> ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses("127.0.0.1").[0],forwardPort,encryptReceive)))
-                    t2.Start()
-                        
-        else 
-            // need both multi and encrypted relay
-            let intermediatePort = getAvilablePort()
-            if listenTcpCount = 1 then 
-                let t1 = new Thread(fun() -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,encryptReceive)))
-                t1.Start()
-                ignore(new Relay(intermediatePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
-                
-            else
-                let t1 = new Thread(fun() -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest)))
-                t1.Start()
-                ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))        
-               
+let main argv =
+    let ts = new testSuite()
+    ts.data_integrity_test()
     0
 
+//let main argv = 
+//    ignore(processArgs(argv))
+//    if (help =false) && (argValidity() = true) then
+//        
+//        if (encryptReceive = false) && (decryptReceive = false) then
+//            // multi relay only, no encryption        
+//            
+//            ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
+//            
+//        else if (listenTcpCount = 1) && (forwardTcpCount = 1) then
+//            if (readFakeRequest = false) && (sendFakeRequest = false) then
+//            // encrypted relay only, no multi relay
+//                ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))
+//            else
+//                let intermediatePort = getAvilablePort()
+//           //     printfn "port selected: %i" intermediatePort
+//                
+//                if sendFakeRequest = true then
+//
+//                    let t2 = new Thread(fun() -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,encryptReceive)))
+//                    t2.Start()
+//                    ignore(new Relay(intermediatePort,1,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
+//                else
+//                    ignore(new Relay(listenOnPort,1,Dns.GetHostAddresses(forwardAddress).[0],intermediatePort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
+//                    
+//                    let t2 = new Thread(fun() -> ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses("127.0.0.1").[0],forwardPort,encryptReceive)))
+//                    t2.Start()
+//                        
+//        else 
+//            // need both multi and encrypted relay
+//            let intermediatePort = getAvilablePort()
+//            if listenTcpCount = 1 then 
+//                let t1 = new Thread(fun() -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,encryptReceive)))
+//                t1.Start()
+//                ignore(new Relay(intermediatePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
+//                
+//            else
+//                let t1 = new Thread(fun() -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest)))
+//                t1.Start()
+//                ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))        
+//               
+//    0
+//
