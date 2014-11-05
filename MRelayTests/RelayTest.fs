@@ -15,7 +15,6 @@ open Relay
 
 [<TestClass>]
 type RelayTest() = 
-    let obje = new obj()
     
     [<TestMethod>]
     member x.TestFileTransfer () = 
@@ -26,23 +25,24 @@ type RelayTest() =
         let t3 = new Thread (x.StartClient)
         let t4 = new Thread (x.StartClient2)
 
-      //  let t5  = new Thread(x.StartServer)
+        let t5  = new Thread(x.StartServer)
 
         do
             ignore(x.CheckFiles())
-         //   t5.Start()        
+            t5.Start()        
             t1.Start() 
             t2.Start()
             t3.Start()
 
-            
+            Thread.Sleep(500)    
+                   
             t4.Start()
-            x.StartServer()
-        //    t5.Join()
+        //
+        //    x.StartServer()
+            t5.Join()
             t3.Join()
             t4.Join()
 
-            Monitor.Enter obje
 
             let s3 = x.GetFileMDR(@"c:\test\1.exe")
             let s4 = x.GetFileMDR(@"c:\test\output.exe")
@@ -51,7 +51,6 @@ type RelayTest() =
             let s1 = x.GetFileMDR(@"c:\test\rt.jar")
             let s2 = x.GetFileMDR(@"c:\test\output2.jar")
             Assert.AreEqual(s1,s2,true)
-            Monitor.Exit obje
         
     member x.CheckFiles()=
         if File.Exists(@"c:\test\output.exe") then
@@ -69,7 +68,7 @@ type RelayTest() =
         f2.Close()
 
     member private x.GetFileMDR(fileName: string)=
-        let f1 = File.Open(Path.GetFullPath(fileName),FileMode.Open,FileAccess.Read)
+        let f1 = File.Open(Path.GetFullPath(fileName),FileMode.Open,FileAccess.Read,FileShare.ReadWrite)
         let md5Result= MD5.Create().ComputeHash(f1)
         let md5String = System.Text.Encoding.ASCII.GetString(md5Result)
         f1.Flush()
@@ -101,7 +100,6 @@ type RelayTest() =
        
         
     member private x.StartServer()= 
-        Monitor.Enter obje
         let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         let remoteep = new System.Net.IPEndPoint(IPAddress.Any,6000)
         listeningSocket.Bind(remoteep)
@@ -156,7 +154,6 @@ type RelayTest() =
         printfn "closing"
         fs.Close()
         fs2.Close()
-        Monitor.Exit obje
 
 
 
