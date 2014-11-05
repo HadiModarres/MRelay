@@ -47,10 +47,6 @@ type public testSuite() =
         let f = File.Create(@"c:\test\output2.jar",1024*1024,FileOptions.None)
         f.Close()
 
-//        let rela1 =ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,100,4096,4096))
-//        let rela2 = ignore(new Relay(5000,100,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,4096,4096))
-//        
-//        ignore(Async.StartAsTask(rela2))
         let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,1,1024,2048,false,false)))
         let t2 = new Thread( fun () -> ignore(new Relay(5000,1,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,1024,2048,false,false)))
         
