@@ -63,7 +63,7 @@
     <Compile Include="EncryptedRelay.fs" />
     <Compile Include="EncryptedRelayTest.fs" />
     <Compile Include="RSAPerformanceTest.fs" />
-    <Compile Include="RelayTest.fs" />
+    <Compile Include="Main.fs" />
     <None Include="ConsoleApplication9.licenseheader" />
   </ItemGroup>
   <ItemGroup>

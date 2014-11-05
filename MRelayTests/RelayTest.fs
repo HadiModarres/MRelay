@@ -1,17 +1,7 @@
-﻿///   2014 Sadegh Modarres   modarres.zadeh@gmail.com
-/// 
-///  This library is free software; you can redistribute it and/or
-///  modify it under the terms of the GNU Lesser General Public
-///  License as published by the Free Software Foundation; either
-///  version 2.1 of the License, or (at your option) any later version.
-/// 
-///  This library is distributed in the hope that it will be useful,
-///  but WITHOUT ANY WARRANTY; without even the implied warranty of
-///  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-///  Lesser General Public License for more details.
-module Test_Data_Integrity
+﻿namespace UnitTestProject1
 
 open System
+open Microsoft.VisualStudio.TestTools.UnitTesting
 open System.Security.Cryptography
 open System.Resources
 open System.IO
@@ -23,76 +13,72 @@ open System.Collections
 open SocketStore
 open Relay
 
-
-type public testSuite() = 
-    let arraysEqual (a:byte[], b:byte[]) =
-        let mutable ans = true
-        for i=0 to (a.GetLength(0)-1) do
-            if a.[i] <> b.[i] then
-                ans <- false
-        ans
-
-
-    member x.data_integrity_test() = 
-
+[<TestClass>]
+type RelayTest() = 
+    let obje = new obj()
+    
+    [<TestMethod>]
+    member x.TestFileTransfer () = 
         
-        if File.Exists(@"c:\test\output.exe") then
-            File.Delete(@"c:\test\output.exe")
-        let f = File.Create(@"c:\test\output.exe",1024*1024,FileOptions.None)
-        f.Close()
-
-        if File.Exists(@"c:\test\output2.jar") then
-            File.Delete(@"c:\test\output2.jar")
-        let f = File.Create(@"c:\test\output2.jar",1024*1024,FileOptions.None)
-        f.Close()
-
         let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,1,1024,2048,false,false)))
         let t2 = new Thread( fun () -> ignore(new Relay(5000,1,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,1024,2048,false,false)))
         
         let t3 = new Thread (x.StartClient)
-        let t4 = new Thread(x.StartClient2)
+        let t4 = new Thread (x.StartClient2)
 
-        let t5  = new Thread(x.StartServer)
+      //  let t5  = new Thread(x.StartServer)
 
-        t5.Start()        
-        t1.Start() 
-        t2.Start()
-        t3.Start()
-        Thread.Sleep(1000)
-        t4.Start()
-        
-        t5.Join()
-        t3.Join()
-        t4.Join()
- 
-        if x.checkFileMDR(@"c:\test\1.exe",@"c:\test\output.exe") then
-            printfn "Test1 Completed!"
-        else
-            printfn "Test1 Failed"
+        do
+            ignore(x.CheckFiles())
+         //   t5.Start()        
+            t1.Start() 
+            t2.Start()
+            t3.Start()
 
-        if x.checkFileMDR(@"c:\test\rt.jar",@"c:\test\output2.jar") then
-            printfn "Test2 Completed!"
-        else
-            printfn "Test2 Failed"
             
-        
-        Console.Read()
-    
-    member private x.checkFileMDR(file1: string, file2: string)=
-        
-     //   let f1s = new FileStream("c:\test\output.exe")
-        let f1 = File.Open(Path.GetFullPath(file1),FileMode.Open,FileAccess.Read)
-        let f2 = File.Open(Path.GetFullPath(file2),FileMode.Open,FileAccess.Read,FileShare.ReadWrite)
+            t4.Start()
+            x.StartServer()
+        //    t5.Join()
+            t3.Join()
+            t4.Join()
 
-        let md5Result= MD5.Create().ComputeHash(f1)
-        let md5Result2 =  MD5.Create().ComputeHash(f2)
-      //  printfn "%A   %A" md5Result md5Result2
+            Monitor.Enter obje
+
+            let s3 = x.GetFileMDR(@"c:\test\1.exe")
+            let s4 = x.GetFileMDR(@"c:\test\output.exe")
+            Assert.AreEqual(s3,s4,true)
+      //      Assert.AreEqual(x.GetFileMDR(@"c:\test\1.exe"),x.GetFileMDR(@"c:\test\output.exe"),true)
+            let s1 = x.GetFileMDR(@"c:\test\rt.jar")
+            let s2 = x.GetFileMDR(@"c:\test\output2.jar")
+            Assert.AreEqual(s1,s2,true)
+            Monitor.Exit obje
+        
+    member x.CheckFiles()=
+        if File.Exists(@"c:\test\output.exe") then
+            File.Delete(@"c:\test\output.exe")
+        let f1 = File.Create(@"c:\test\output.exe",1024*1024,FileOptions.None)
+        f1.Flush()
+        f1.Dispose()
         f1.Close()
+        
+        if File.Exists(@"c:\test\output2.jar") then
+            File.Delete(@"c:\test\output2.jar")
+        let f2 = File.Create(@"c:\test\output2.jar",1024*1024,FileOptions.None)
+        f2.Flush()
+        f2.Dispose()
         f2.Close()
-        if arraysEqual(md5Result,md5Result2) then
-            true
-        else 
-            false
+
+    member private x.GetFileMDR(fileName: string)=
+        let f1 = File.Open(Path.GetFullPath(fileName),FileMode.Open,FileAccess.Read)
+        let md5Result= MD5.Create().ComputeHash(f1)
+        let md5String = System.Text.Encoding.ASCII.GetString(md5Result)
+        f1.Flush()
+        f1.Dispose()
+        f1.Close()
+        md5String
+    
+    
+        
     member private x.StartClient() = 
         let clientSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         let remoteep = new System.Net.IPEndPoint(Dns.GetHostAddresses("127.0.0.1").[0],4000)
@@ -115,6 +101,7 @@ type public testSuite() =
        
         
     member private x.StartServer()= 
+        Monitor.Enter obje
         let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         let remoteep = new System.Net.IPEndPoint(IPAddress.Any,6000)
         listeningSocket.Bind(remoteep)
@@ -156,6 +143,7 @@ type public testSuite() =
 
         t1.Join()
         t2.Join()
+        
         printfn "flushing"
         newSocket.Close()
         newSocket2.Close()
@@ -168,3 +156,7 @@ type public testSuite() =
         printfn "closing"
         fs.Close()
         fs2.Close()
+        Monitor.Exit obje
+
+
+

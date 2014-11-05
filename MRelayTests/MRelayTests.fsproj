@@ -59,9 +59,9 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="UnitTest.fs" />
     <None Include="App.config" />
     <None Include="MSTest.runsettings" />
+    <Compile Include="RelayTest.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConsoleApplication9\MRelay.fsproj">
@@ -91,4 +91,7 @@
   <Target Name="AfterBuild">
     <MSBuild.ExtensionPack.FileSystem.File TaskAction="Replace" RegexPattern="&lt;dependentAssembly&gt;([\s]+.)&lt;assemblyIdentity name=&quot;FSharp\.Core&quot; publicKeyToken=&quot;b03f5f7f11d50a3a&quot; culture=&quot;neutral&quot; \/&gt;([\s\S]+?)&lt;\/dependentAssembly&gt;" RegexOptionList="IgnoreCase|Singleline" Replacement="&lt;dependentAssembly&gt;&#xD;&#xA;        &lt;assemblyIdentity name=&quot;FSharp.Core&quot; publicKeyToken=&quot;b03f5f7f11d50a3a&quot; culture=&quot;neutral&quot; /&gt;&#xD;&#xA;        &lt;bindingRedirect oldVersion=&quot;0.0.0.0-$(TargetFSharpCoreVersion)&quot; newVersion=&quot;$(TargetFSharpCoreVersion)&quot;/&gt;&#xD;&#xA;      &lt;/dependentAssembly&gt;" Files="$(TargetPath).config" />
   </Target>
+  <PropertyGroup>
+    <PreBuildEvent>taskkill /F /IM vstest.executionengine.x86.exe /FI "MEMUSAGE gt 1"</PreBuildEvent>
+  </PropertyGroup>
 </Project>
