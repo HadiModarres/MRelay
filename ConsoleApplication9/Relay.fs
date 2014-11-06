@@ -50,6 +50,8 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
 
     let headerReadCallback2 = new AsyncCallback(this.HeaderReadCallback2)
     let headerSendCallback2 = new AsyncCallback(this.HeaderSendCallback2)
+    let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
+
     member this.StartListening()=
         if tcpCount=1 then
         //    printfn "single listen"
@@ -79,7 +81,6 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
 //        listeningSocket.Listen(10000)
       //  listeningSocket.LingerState.Enabled <- false
         try
-            let newSet = new SocketStore(minors)
             let sc = new SocketAsyncEventArgs()
             let bo = listeningSocket.AcceptAsync(sc)
             if bo = true then
@@ -96,21 +97,30 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
 //            else
 //                ignore(callback(newSet))
              
-
+    member this.MultiAccept(e: obj)=
+        let sc = e :?> SocketAsyncEventArgs
+        let newSocket = sc.AcceptSocket
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+        let guid = Array.create 17 (new Byte())
+        ignore(newSocket.BeginReceive(guid,0,17,SocketFlags.None,guidReadCallback,(guid,newSocket)))
+        this.MultiListen()
         
     member this.MultiListen()=
         
-        let callback = new AsyncCallback(this.GUIDReadCallback)
-        
-        while true do
+//        let newSocket = listeningSocket.Accept()
+//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+//        let guid = Array.create 17 (new Byte())
+//        ignore(newSocket.BeginReceive(guid,0,17,SocketFlags.None,guidReadCallback,(guid,newSocket)))
+        try
+            let sc = new SocketAsyncEventArgs()
+            let bo = listeningSocket.AcceptAsync(sc)
+            if bo = true then
+                sc.Completed.Add(this.MultiAccept)
+            else
+                this.MultiAccept(sc)               
+        with
+        | e -> listeningSocket.Dispose();listeningSocket.Close();
 
-            let newSocket = listeningSocket.Accept()
-            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-      //      printfn "ACCEPTED A NEW CONNECTION"
-      //      newSocket.SendBufferSize <- (256*1024)
-      //      newSocket.ReceiveBufferSize <- (256*1024)
-            let guid = Array.create 17 (new Byte())
-            ignore(newSocket.BeginReceive(guid,0,17,SocketFlags.None,callback,(guid,newSocket)))
 
     member this.GUIDReadCallback(result: IAsyncResult)=
         Monitor.Enter lockobj

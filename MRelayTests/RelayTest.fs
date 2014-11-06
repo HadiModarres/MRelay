@@ -22,16 +22,31 @@ type RelayTest() =
         l.Stop()
         p
     [<TestMethod>]
-    member x.TestFileTransferDriver()=
-        x.TestFileTransfer(1,1024,2048)
-        x.TestFileTransfer(1,4000,8000)
-        x.TestFileTransfer(1,64*1024,64*1024)
+    member x.TestFileTransferMultiTcp()=
+//        x.TestFileTransfer(1,1024,2048)
+//        x.TestFileTransfer(1,4000,8000)
+//        x.TestFileTransfer(1,64*1024,64*1024)
+        x.TestFileTransfer(5,400,800,false)
+        x.TestFileTransfer(60,1024,1024,false)
 
-  //  [<TestMethod>]
-    member x.TestFileTransfer (tcpCount: int, segmentSize: int, minorSocketBufferSize: int) = 
+    [<TestMethod>]
+    member x.TestFileTransferSingleTcp()=
+        x.TestFileTransfer(1,1024,2048,false)
+        x.TestFileTransfer(1,4000,8000,false)
+        x.TestFileTransfer(1,64*1024,64*1024,false)
+    
+    [<TestMethod>]
+    member x.TestSingleTcpFakeHeader()=
+        x.TestFileTransfer(1,64*1024,64*1024,true)
+
+    [<TestMethod>]
+    member x.TestMultiTcpFakeHeader()=
+        x.TestFileTransfer(6,64*1024,64*1024,true)
+
+    member x.TestFileTransfer (tcpCount: int, segmentSize: int, minorSocketBufferSize: int,fake: bool) = 
         let newp = getAvilablePort()
-        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,false,false)))
-        let t2 = new Thread( fun () -> ignore(new Relay(5000,tcpCount,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,segmentSize,minorSocketBufferSize,false,false)))
+        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,false,fake)))
+        let t2 = new Thread( fun () -> ignore(new Relay(5000,tcpCount,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,segmentSize,minorSocketBufferSize,fake,false)))
         
         t1.IsBackground <- true
         t2.IsBackground <- true
