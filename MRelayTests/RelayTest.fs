@@ -15,13 +15,26 @@ open Relay
 
 [<TestClass>]
 type RelayTest() = 
-    
+    let getAvilablePort() =
+        let l = new TcpListener(IPAddress.Loopback,0)
+        l.Start()
+        let p = (l.LocalEndpoint :?> IPEndPoint).Port
+        l.Stop()
+        p
     [<TestMethod>]
-    member x.TestFileTransfer () = 
+    member x.TestFileTransferDriver()=
+        x.TestFileTransfer(1,1024,2048)
+        x.TestFileTransfer(1,4000,8000)
+        x.TestFileTransfer(1,64*1024,64*1024)
+
+  //  [<TestMethod>]
+    member x.TestFileTransfer (tcpCount: int, segmentSize: int, minorSocketBufferSize: int) = 
+        let newp = getAvilablePort()
+        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,false,false)))
+        let t2 = new Thread( fun () -> ignore(new Relay(5000,tcpCount,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,segmentSize,minorSocketBufferSize,false,false)))
         
-        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,1,1024,2048,false,false)))
-        let t2 = new Thread( fun () -> ignore(new Relay(5000,1,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,1024,2048,false,false)))
-        
+        t1.IsBackground <- true
+        t2.IsBackground <- true
         let t3 = new Thread (x.StartClient)
         let t4 = new Thread (x.StartClient2)
 
@@ -37,21 +50,25 @@ type RelayTest() =
             Thread.Sleep(500)    
                    
             t4.Start()
-        //
-        //    x.StartServer()
+        
             t5.Join()
             t3.Join()
             t4.Join()
 
+          //  t1.Abort()
+          //  t2.Abort()
+       //     printfn "relay aborted"
+            t1.Join()
+            t2.Join()
 
             let s3 = x.GetFileMDR(@"c:\test\1.exe")
             let s4 = x.GetFileMDR(@"c:\test\output.exe")
             Assert.AreEqual(s3,s4,true)
-      //      Assert.AreEqual(x.GetFileMDR(@"c:\test\1.exe"),x.GetFileMDR(@"c:\test\output.exe"),true)
             let s1 = x.GetFileMDR(@"c:\test\rt.jar")
             let s2 = x.GetFileMDR(@"c:\test\output2.jar")
             Assert.AreEqual(s1,s2,true)
         
+
     member x.CheckFiles()=
         if File.Exists(@"c:\test\output.exe") then
             File.Delete(@"c:\test\output.exe")
@@ -102,11 +119,14 @@ type RelayTest() =
     member private x.StartServer()= 
         let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         let remoteep = new System.Net.IPEndPoint(IPAddress.Any,6000)
+        listeningSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.ReuseAddress,true)
         listeningSocket.Bind(remoteep)
         listeningSocket.Listen(3)
         let newSocket = listeningSocket.Accept()
         let newSocket2 = listeningSocket.Accept()
 
+        listeningSocket.Dispose()
+        listeningSocket.Close()
         printfn "accepted two connections .."
         let buf = Array.create 8192 (new Byte())
         let buf2 = Array.create 8192 (new Byte())

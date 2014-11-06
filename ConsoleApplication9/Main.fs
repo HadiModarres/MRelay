@@ -16,7 +16,6 @@ open System.Net
 open System.Net.Sockets
 open System
 open Test_Data_Integrity
-open EncryptedRelayTest
 open NDesk.Options
 open EncryptedRelay
 open phelix

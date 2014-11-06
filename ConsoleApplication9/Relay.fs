@@ -36,8 +36,15 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
     let socketStoreMap = new Generic.Dictionary<string,SocketStore>()
 
     let mutable callback: SocketStore -> unit = f
+    let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
+    let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
+    
     do
         callback <- newConnectionReceived
+        listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        listeningSocket.Bind(receiveEndpoint)
+        listeningSocket.Listen(10000)
+
     let headerReadCallback = new AsyncCallback(this.HeaderReadCallback)
     let headerSendCallback = new AsyncCallback(this.HeaderSendCallback)  
 
@@ -51,32 +58,48 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
        //     printfn "multi listen"
             this.MultiListen() 
 
+        
+    member this.SingleAccept(e: obj)=
+        let newSet = new SocketStore(minors)
+        let sc = e :?> SocketAsyncEventArgs
+        let newSocket = sc.AcceptSocket
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+        newSet.MajorSocket <- newSocket
+        if exchangeFakeHeader = true then
+            ignore(newSocket.BeginReceive(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerReadCallback2,(newSet,newSocket)))
+        else
+            ignore(callback(newSet))
+        this.SingleListen()
+    
     member this.SingleListen()=
 
-        let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
-        let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
-        listeningSocket.Bind(receiveEndpoint)
-        listeningSocket.Listen(10000)
-
-        while true do
+//        let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
+//        let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
+//        listeningSocket.Bind(receiveEndpoint)
+//        listeningSocket.Listen(10000)
+      //  listeningSocket.LingerState.Enabled <- false
+        try
             let newSet = new SocketStore(minors)
-            
-            let newSocket = listeningSocket.Accept()
-            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-     //       printfn "A NEW CONNECTION RECEIVED ON SINGLE LISTEN"
-            newSet.MajorSocket <- newSocket
-            if exchangeFakeHeader = true then
-                ignore(newSocket.BeginReceive(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerReadCallback2,(newSet,newSocket)))
+            let sc = new SocketAsyncEventArgs()
+            let bo = listeningSocket.AcceptAsync(sc)
+            if bo = true then
+                sc.Completed.Add(this.SingleAccept)
             else
-                ignore(callback(newSet))
+                this.SingleAccept(sc)               
+        with
+        | e -> listeningSocket.Dispose();listeningSocket.Close();
+//            let newSocket = listeningSocket.Accept()
+//            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+//            newSet.MajorSocket <- newSocket
+//            if exchangeFakeHeader = true then
+//                ignore(newSocket.BeginReceive(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerReadCallback2,(newSet,newSocket)))
+//            else
+//                ignore(callback(newSet))
              
 
-
+        
     member this.MultiListen()=
-        let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
-        let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
-        listeningSocket.Bind(receiveEndpoint)
-        listeningSocket.Listen(10000)
+        
         let callback = new AsyncCallback(this.GUIDReadCallback)
         
         while true do
@@ -332,5 +355,18 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             ignore(new StreamMerger(socketStore,segmentSize,minorConnectionBufferSize))
             ignore(new StreamSplitter(socketStore,segmentSize,minorConnectionBufferSize))
         
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
