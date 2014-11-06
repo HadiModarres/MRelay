@@ -61,7 +61,6 @@
     <Compile Include="StreamEncryptor.fs" />
     <Compile Include="StreamDecryptor.fs" />
     <Compile Include="EncryptedRelay.fs" />
-    <Compile Include="EncryptedRelayTest.fs" />
     <Compile Include="RSAPerformanceTest.fs" />
     <Compile Include="Main.fs" />
     <None Include="ConsoleApplication9.licenseheader" />

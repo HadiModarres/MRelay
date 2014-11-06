@@ -1,15 +1,4 @@
-﻿///   2014 Sadegh Modarres   modarres.zadeh@gmail.com
-/// 
-///  This library is free software; you can redistribute it and/or
-///  modify it under the terms of the GNU Lesser General Public
-///  License as published by the Free Software Foundation; either
-///  version 2.1 of the License, or (at your option) any later version.
-/// 
-///  This library is distributed in the hope that it will be useful,
-///  but WITHOUT ANY WARRANTY; without even the implied warranty of
-///  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-///  Lesser General Public License for more details.
-module EncryptedRelayTest
+﻿module EncryptedRelayTest
 
 open System
 open System.Security.Cryptography
@@ -23,8 +12,9 @@ open System.Collections
 open SocketStore
 open Relay
 open EncryptedRelay
+open Microsoft.VisualStudio.TestTools.UnitTesting   
 
-
+[<TestClass>]
 type public EncryptedRelayTest() as this=
      let a = 2
      let file = @"c:\test\1.exe"
@@ -40,10 +30,7 @@ type public EncryptedRelayTest() as this=
                 ans <- false
         ans
 
-     do
-   //     this.TestEncrypt()
-        this.TestEncryptDecrypt()
-
+     
      member x.SetupEncryptRelay(port: int,forwardPort: int)=
          let key = Text.Encoding.ASCII.GetBytes(key)
          let iv = Text.Encoding.ASCII.GetBytes(iv)
@@ -66,7 +53,7 @@ type public EncryptedRelayTest() as this=
 
      member x.SendFileToPort()=
         let clientSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
-        let remoteep = new System.Net.IPEndPoint(Dns.GetHostAddresses("127.0.0.1").[0],4000)
+        let remoteep = new System.Net.IPEndPoint(Dns.GetHostAddresses("127.0.0.1").[0],7000)
 
         clientSocket.Connect(remoteep)
         printfn "sending file"
@@ -81,11 +68,9 @@ type public EncryptedRelayTest() as this=
         listeningSocket.Bind(remoteep)
         listeningSocket.Listen(3)
         let newSocket = listeningSocket.Accept()
-  //      let newSocket2 = listeningSocket.Accept()
 
 
         let buf = Array.create (64*1024) (new Byte())
-//        let buf2 = Array.create 8192 (new Byte())
        // let is = File.Open(Path.GetFullPath(@"c:\test\1.exe"),FileMode.Open,FileAccess.Read)
    //     use fs = File.Create(@"c:\test\output.exe")
         let fs = File.Open(Path.GetFullPath(filePath),FileMode.Open,FileAccess.ReadWrite,FileShare.ReadWrite)
@@ -112,56 +97,69 @@ type public EncryptedRelayTest() as this=
         fs.Close()
         printfn "file closed"
 
-     member private x.checkFileMDR(file1: string, file2: string)=
-        
-        let f1 = File.Open(Path.GetFullPath(file1),FileMode.Open,FileAccess.Read)
-        let f2 = File.Open(Path.GetFullPath(file2),FileMode.Open,FileAccess.Read,FileShare.ReadWrite)
-
-        let md5Result= MD5.Create().ComputeHash(f1)
-        let md5Result2 =  MD5.Create().ComputeHash(f2)
-        f1.Close()
-        f2.Close()
-        if arraysEqual(md5Result,md5Result2) then
-            true
-        else 
-            false
-
-
-
-     member x.TestEncrypt() =
-            if File.Exists(encryptedFile) then
-                 File.Delete(encryptedFile)
-            let f = File.Create(encryptedFile,1024*1024,FileOptions.None)
-            f.Close()
-
-            x.SetupEncryptRelay(4000,5000)
-            let t = new Thread(x.SendFileToPort)
-            t.Start()
-            x.ReceiveFile(5000,encryptedFile)
-            printfn "file received."
-            t.Join()
-
-            if x.checkFileMDR(file,encryptedFile) = true then
-                printfn "test1 failed"
-            else
-                printfn "test1 successful"
+//     member private x.checkFileMDR(file1: string, file2: string)=
+//        
+//        let f1 = File.Open(Path.GetFullPath(file1),FileMode.Open,FileAccess.Read)
+//        let f2 = File.Open(Path.GetFullPath(file2),FileMode.Open,FileAccess.Read,FileShare.ReadWrite)
+//
+//        let md5Result= MD5.Create().ComputeHash(f1)
+//        let md5Result2 =  MD5.Create().ComputeHash(f2)
+//        f1.Close()
+//        f2.Close()
+//        if arraysEqual(md5Result,md5Result2) then
+//            true
+//        else 
+//            false
 
 
 
+//     member x.TestEncrypt() =
+//            if File.Exists(encryptedFile) then
+//                 File.Delete(encryptedFile)
+//            let f = File.Create(encryptedFile,1024*1024,FileOptions.None)
+//            f.Close()
+//
+//            x.SetupEncryptRelay(4000,5000)
+//            let t = new Thread(x.SendFileToPort)
+//            t.Start()
+//            x.ReceiveFile(5000,encryptedFile)
+//            printfn "file received."
+//            t.Join()
+//
+//            if x.checkFileMDR(file,encryptedFile) = true then
+//                printfn "test1 failed"
+//            else
+//                printfn "test1 successful"
+
+
+     [<TestMethod>]
      member x.TestEncryptDecrypt()=
             if File.Exists(decryptedFile) then
                  File.Delete(decryptedFile)
             let f = File.Create(decryptedFile,1024*1024,FileOptions.None)
             f.Close()
 
-            x.SetupEncryptDecryptRelays(4000,5000)
+            x.SetupEncryptDecryptRelays(7000,8000)
             let t = new Thread(x.SendFileToPort)
             t.Start()
-            x.ReceiveFile(5000,decryptedFile)
+            x.ReceiveFile(8000,decryptedFile)
             printfn "file received."
             t.Join()
 
-            if x.checkFileMDR(file,decryptedFile) = false then
-                printfn "test2 failed"
-            else
-                printfn "test2 successful"
+//            if x.checkFileMDR(file,decryptedFile) = false then
+//                printfn "test2 failed"
+//            else
+//                printfn "test2 successful"
+            Assert.AreEqual(x.GetFileMDR(file),x.GetFileMDR(decryptedFile),false)
+     member private x.GetFileMDR(fileName: string)=
+        let f1 = File.Open(Path.GetFullPath(fileName),FileMode.Open,FileAccess.Read,FileShare.ReadWrite)
+        let md5Result= MD5.Create().ComputeHash(f1)
+        let md5String = System.Text.Encoding.ASCII.GetString(md5Result)
+        f1.Flush()
+        f1.Dispose()
+        f1.Close()
+        md5String
+    
+    
+
+
