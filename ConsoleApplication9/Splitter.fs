@@ -16,10 +16,10 @@ open System.Net
 open System.Net.Sockets
 open System.Threading
 open System.Collections
-open SocketStore
+open IDataPipe
+open ISocketManager
 
-
-type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: unit-> unit) as this =
+type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)-> unit) as this =
     let mutable neededBytes = segmentSize
     let mutable totalAvailable = 0
     let mutable totalSent = 0
@@ -80,22 +80,22 @@ type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,s
           //          printfn "failed to send any data to minor socket"
                     ()
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e-> socketException(socket,e)
             | :? ObjectDisposedException -> ()  
             
     member this.SendMore(minorSocketFlushDone:MinorSocket -> unit)=
             try
                 ignore(socket.BeginSend(buffer,totalSent,totalAvailable-totalSent,SocketFlags.None,callback,minorSocketFlushDone))
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e -> socketException(socket,e)
             | :? ObjectDisposedException -> ()
     member this.Reset() = 
         totalAvailable <- 0
         totalSent <- 0
 
-
-type StreamSplitter(socketStore: SocketStore,segmentSize: int,minorSocketBufferSize: int) as this =   // major socket receives and splits the stream to send to minor streams
-    let majorSocketBufferSize = socketStore.MinorSockets.GetLength(0)*minorSocketBufferSize
+[<AllowNullLiteral>]
+type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSockets: Socket[],segmentSize: int,minorSocketBufferSize: int) as this =   // major socket receives and splits the stream to send to minor streams
+    let majorSocketBufferSize = minorSockets.GetLength(0)*minorSocketBufferSize
     let majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<MinorSocket>()
     let callback1 = new AsyncCallback(this.ReceiveToMajorSocketCallback)
@@ -103,7 +103,7 @@ type StreamSplitter(socketStore: SocketStore,segmentSize: int,minorSocketBufferS
     let flushDoneLockObj = new obj()
 
     do 
-        for socket in socketStore.MinorSockets do
+        for socket in minorSockets do
              minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
 
         this.ReadMoreData()
@@ -120,18 +120,18 @@ type StreamSplitter(socketStore: SocketStore,segmentSize: int,minorSocketBufferS
 
     member this.ReceiveToMajorSocketCallback(result: IAsyncResult) =
             try
-                let readCount = socketStore.MajorSocket.EndReceive(result)
+                let readCount = majorSocket.EndReceive(result)
                 if readCount < 1 then
                     this.majorReadDone()
                 else
                     let buff = Array.create readCount (new Byte())
                     Array.blit majorSocketBuffer 0 buff 0 readCount
                     this.SplitData buff
-                    sendingSocketCount <- socketStore.MinorSockets.GetLength(0)
+                    sendingSocketCount <- minorSockets.GetLength(0)
                     for sock in minorStreamQueue.ToArray() do
                         sock.Flush(this.MinorSocketFlushDone)
             with 
-            | :? SocketException -> this.SocketExceptionOccured()
+            | :? SocketException as e -> this.SocketExceptionOccured(majorSocket,e)
             | :? ObjectDisposedException -> ()  
 
     
@@ -148,14 +148,19 @@ type StreamSplitter(socketStore: SocketStore,segmentSize: int,minorSocketBufferS
                 minorStreamQueue.Enqueue(soc)
                 this.SplitData(remainingBuffer)
 
-    member this.SocketExceptionOccured() =
-           socketStore.Close()
+    member this.SocketExceptionOccured(sock: Socket,exc:Exception) = 
+        socketManager.SocketExceptionOccured sock exc
     member this.ReadMoreData() = 
      //       printfn "reading more data"
             try
-                ignore(socketStore.MajorSocket.BeginReceive(majorSocketBuffer,0,majorSocketBufferSize,SocketFlags.None,callback1,null))
+                ignore(majorSocket.BeginReceive(majorSocketBuffer,0,majorSocketBufferSize,SocketFlags.None,callback1,null))
             with 
-            | :? SocketException -> this.SocketExceptionOccured()
+            | :? SocketException as e-> this.SocketExceptionOccured(majorSocket,e)
             | :? ObjectDisposedException -> ()
     member this.majorReadDone()=
-        socketStore.MajorReadDone()
+        socketManager.MajorReadDone()
+
+    interface IDataPipe with
+        member x.TotalTransferedData()= 
+            printfn "implement"
+            0

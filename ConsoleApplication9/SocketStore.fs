@@ -16,29 +16,31 @@ open System.Net
 open System.Net.Sockets
 open System.Threading
 open System.Collections
+open Splitter
+open Merger
+open IDataPipe
+open ISocketManager
+
 
 type SocketStore(minorCount: int)=
- //   let mutable minorSocketCount = -1
     let mutable connectedSockets = 0
     let mutable majorSocket: Socket = null
     let mutable majorMinorDirectionDone = false
     let mutable minorMajorDirectionDone = false
+    let mutable splitter: IDataPipe = null
+    let mutable merger: IDataPipe = null
+    let mutable merger = null
     let lockobj = new obj()
     let lockobj2 = new obj()
- //   let mutable minorSockets =  Concurrent.ConcurrentQueue<Socket>() 
-//    let minorSockets = Array.create minorCount (new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp))
+
     let minorSockets = Array.create minorCount (null)
+
     member x.MajorSocket 
         with get() = majorSocket
         and set y = majorSocket <- y
     member x.MinorSockets
         with get() = minorSockets
 
-//    member x.MinorCount
-//        with get()= minorSocketCount
-//        and set y = minorSocketCount <- y
-//    member x.MinorSockets
-//        with get() = minorSockets
     member x.AddToMinorSockets(sock:Socket,sockIndex: int)=
         Monitor.Enter lockobj2
         connectedSockets <- (connectedSockets + 1)
@@ -48,8 +50,13 @@ type SocketStore(minorCount: int)=
     member x.ConnectedSockets
            with get()= connectedSockets
 
-    member x.MajorReadDone() =
-        x.Syncer(x.SyncMajorReadDone)
+    member x.Splitter
+            with get() = splitter
+            and set(s: IDataPipe) = splitter <- s
+    member x.Merger
+            with get() = merger
+            and set(m: IDataPipe) = merger <- m
+    
     member x.SyncMajorReadDone() =
        // printfn "major read done"
         try
@@ -79,31 +86,27 @@ type SocketStore(minorCount: int)=
             x.Close()
        
 
-    member x.MinorReadDone() =
-   //     printfn "minor major read done: %b" minorMajorDirectionDone
-
-    //    printfn "executing minor read done"
-        x.Syncer(x.SyncMinorReadDone)
-
-   //     printfn "end executing minor read done"
-   //     printfn "minor major read done: %b" minorMajorDirectionDone
-
+    
     member private x.Syncer(f:unit->unit) =
         Monitor.Enter lockobj
         f()
         Monitor.Exit lockobj
 
     member x.Close()= 
-   //     printfn "closing pipe"
         for sock: Socket in minorSockets do
             if sock <> null then
                 sock.Close()
                 
         if majorSocket <> null then
             majorSocket.Close()
-       
-
-//        printfn "closing"
-//    member x.AddMinorSocket(sock: Socket,socketNumber: int)=
-//        minorSockets.[socketNumber] <- sock
-
+    interface IDataPipe with
+        member x.TotalTransferedData()= 
+            merger.TotalTransferedData() + splitter.TotalTransferedData()  
+    interface ISocketManager with
+        member x.MajorReadDone() =
+            x.Syncer(x.SyncMajorReadDone) 
+        member x.MinorReadDone() =
+            x.Syncer(x.SyncMinorReadDone)
+        member x.SocketExceptionOccured sock exc  =
+            x.Close()
+            

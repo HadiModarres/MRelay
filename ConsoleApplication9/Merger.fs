@@ -10,19 +10,20 @@
 ///  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ///  Lesser General Public License for more details.
 module Merger
-open SocketStore
+open IDataPipe
 open System
 open System.Net
 open System.Net.Sockets
 open System.Threading
 open System.Collections
+open ISocketManager
 
 
 let mutable allData = 0
 let mutable aggregateData = 0
 
 
-type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: unit-> unit) as this=
+type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)-> unit) as this=
     let buffer = Array.create socketBufferSize (new Byte())
     let  receivedData = ArrayList.Synchronized(new ArrayList(3000));
     let callback = new AsyncCallback(this.ReceiveToMinorSocketCallback)
@@ -45,7 +46,7 @@ type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,s
             try
                 ignore(socket.BeginReceive(buffer,0,buffer.GetLength(0),SocketFlags.None,callback,null))
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e -> socketException(socket,e)
             | :? ObjectDisposedException -> ()  
     member this.ReceiveToMinorSocketCallback(result: IAsyncResult) = 
             try
@@ -60,11 +61,11 @@ type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,s
                     ignore(receivedData.Add(arr))
                     this.StartReading()
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e-> socketException(socket,e)
             | :? ObjectDisposedException -> ()  
 
 
-type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: unit->unit) as this=
+type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)->unit) as this=
     let mutable  totalAvailable = 0
     let mutable totalSent = 0 
     let buffer = Array.create socketBufferSize (new Byte())
@@ -111,7 +112,7 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
             try
                 ignore(socket.BeginSend(buffer,totalSent,totalAvailable-totalSent,SocketFlags.None,callback,flushDone))
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e -> socketException(socket,e)
             | :? ObjectDisposedException -> ()
         
     member private this.SendToMajorSocketCallback(result: IAsyncResult)=
@@ -127,10 +128,9 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
                     else
                         this.SendMore(f) // send the rest
                 else  // failed to send any data
-              //      printfn "couldn't send any data"
                     ()
             with 
-            | :? SocketException -> socketException()
+            | :? SocketException as e -> socketException(socket,e)
             | :? ObjectDisposedException -> ()  
 
 
@@ -138,11 +138,12 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
         totalAvailable <- 0
         totalSent <- 0
 
-type StreamMerger(socketStore:SocketStore,segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
-    let majorSocketBufferSize = (socketStore.MinorSockets.GetLength(0))*minorSocketBufferSize
+[<AllowNullLiteral>]
+type StreamMerger(socketManager: ISocketManager,majorSocket:Socket,minorSockets: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
+    let majorSocketBufferSize = (minorSockets.GetLength(0))*minorSocketBufferSize
     let majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<MinorSocket>()
-    let majorSocket = new MajorSocket(socketStore.MajorSocket,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
+    let majorSocket = new MajorSocket(majorSocket,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
     let mutable feeding = false
     let lockobj = new obj()
     let lockobj2 = new obj()
@@ -150,7 +151,7 @@ type StreamMerger(socketStore:SocketStore,segmentSize: int,minorSocketBufferSize
     let timer = new Threading.Timer(timerCallback)
     let mutable dataOver = false
     do
-        for sock in socketStore.MinorSockets do
+        for sock in minorSockets do
             let min = new MinorSocket(sock,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
             minorStreamQueue.Enqueue(min)
         
@@ -162,8 +163,9 @@ type StreamMerger(socketStore:SocketStore,segmentSize: int,minorSocketBufferSize
         
 
 
-    member this.SocketExceptionOccured() = 
-        socketStore.Close()
+    member this.SocketExceptionOccured(sock: Socket,exc:Exception) = 
+          socketManager.SocketExceptionOccured sock exc
+
     member this.MajorSocketFlushDone() =              
         feeding <- false
         ignore(timer.Change(0,Timeout.Infinite))
@@ -174,7 +176,6 @@ type StreamMerger(socketStore:SocketStore,segmentSize: int,minorSocketBufferSize
             while this.FeedMajorSocket() do
                 feeding <- true
             if feeding then
-//                feeding <- true
                 ignore(timer.Change(Timeout.Infinite,Timeout.Infinite))
                 majorSocket.Flush(this.MajorSocketFlushDone)
             else
@@ -203,9 +204,13 @@ type StreamMerger(socketStore:SocketStore,segmentSize: int,minorSocketBufferSize
                 else 
                     if sock.IsDataDone() && (feeding = false) then
                         dataOver <- true
-                        socketStore.MinorReadDone()
+                        socketManager.MinorReadDone() 
                  //       printfn "data done and feeding false"
                     false
         else
             false
             
+    interface IDataPipe with
+        member x.TotalTransferedData()= 
+            printfn "implement"
+            0

@@ -15,7 +15,6 @@ open Relay
 open System.Net
 open System.Net.Sockets
 open System
-open Test_Data_Integrity
 open NDesk.Options
 open EncryptedRelay
 open phelix
@@ -150,12 +149,10 @@ let argValidity()=
     valid
 
 [<EntryPoint>]
-let main argv =
-    let ts = new testSuite()
-    ts.data_integrity_test()
+   
+let main argv = 
+    printfn "main not implemented yet"
     0
-
-//let main argv = 
 //    ignore(processArgs(argv))
 //    if (help =false) && (argValidity() = true) then
 //        
@@ -197,4 +194,4 @@ let main argv =
 //                ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))        
 //               
 //    0
-//
+
