@@ -23,11 +23,10 @@ open RelayMonitor
 open IDataPipe
 
 
-let encryptSend = false
-let fakeHttpRequest = System.Text.Encoding.ASCII.GetBytes("GET /path/file.iso HTTP/1.0\r\nFrom: someuser@jmarshall.com\r\nUser-Agent: HTTPTool/1.0\r\n\r\n")
-let fakeHttpResponse = System.Text.Encoding.ASCII.GetBytes("HTTP/1.0 200 OK\r\nDate: Fri, 31 Dec 1999 23:59:59 GMT\r\nContent-Type: application/octet-stream\r\nContent-Length: 98765123\r\n\r\n")
+//let fakeHttpRequest = System.Text.Encoding.ASCII.GetBytes("GET /path/file.iso HTTP/1.0\r\nFrom: someuser@jmarshall.com\r\nUser-Agent: HTTPTool/1.0\r\n\r\n")
+//let fakeHttpResponse = System.Text.Encoding.ASCII.GetBytes("HTTP/1.0 200 OK\r\nDate: Fri, 31 Dec 1999 23:59:59 GMT\r\nContent-Type: application/octet-stream\r\nContent-Length: 98765123\r\n\r\n")
 
-type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: SocketStore -> unit,minors: int,exchangeFakeHeader: bool,dynamic: bool) as this=
+type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: SocketStore -> unit,minors: int,dynamic: bool) as this=
     let lockobj = new obj()
     let f (s:SocketStore) = 
         printfn "dummy"
@@ -45,11 +44,11 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
         listeningSocket.Bind(receiveEndpoint)
         listeningSocket.Listen(10000)
 
-    let headerReadCallback = new AsyncCallback(this.HeaderReadCallback)
-    let headerSendCallback = new AsyncCallback(this.HeaderSendCallback)  
+//    let headerReadCallback = new AsyncCallback(this.HeaderReadCallback)
+//    let headerSendCallback = new AsyncCallback(this.HeaderSendCallback)  
 
-    let headerReadCallback2 = new AsyncCallback(this.HeaderReadCallback2)
-    let headerSendCallback2 = new AsyncCallback(this.HeaderSendCallback2)
+//    let headerReadCallback2 = new AsyncCallback(this.HeaderReadCallback2)
+//    let headerSendCallback2 = new AsyncCallback(this.HeaderSendCallback2)
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
 
     member this.StartListening()=
@@ -65,10 +64,7 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
         let newSocket = sc.AcceptSocket
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         newSet.MajorSocket <- newSocket
-        if exchangeFakeHeader = true then
-            ignore(newSocket.BeginReceive(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerReadCallback2,(newSet,newSocket)))
-        else
-            ignore(callback(newSet))
+        ignore(callback(newSet))
         this.SingleListen()
     
     member this.SingleListen()=
@@ -124,63 +120,60 @@ type private Server(listenOnPort: int,tcpCount: int,newConnectionReceived: Socke
                 socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 16),newStore)
 
             let s = socketStoreMap.[System.Text.Encoding.ASCII.GetString(Array.sub guid 0 16)]
-            if exchangeFakeHeader = true then
-                 ignore(socket.BeginReceive(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerReadCallback,(guid,socket)))
-            else
-                s.AddToMinorSockets(socket,int(guid.[16]))
-                if s.ConnectedSockets = tcpCount then
-                        do callback(s)
+            s.AddToMinorSockets(socket,int(guid.[16]))
+            if s.ConnectedSockets = tcpCount then
+                    do callback(s)
 
         Monitor.Exit lockobj
 
-    member this.HeaderReadCallback(result: IAsyncResult)=
-        let h = result.AsyncState :?> (byte[]*Socket)
-        let guid =  fst(h)
-        let socket = snd(h)
-        let read = socket.EndReceive(result)
-        if read <> fakeHttpRequest.GetLength(0) then
-            printfn "couldn't read fake header, handle"
-        else
-            ignore(socket.BeginSend(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerSendCallback,(guid,socket)))
+//    member this.HeaderReadCallback(result: IAsyncResult)=
+//        let h = result.AsyncState :?> (byte[]*Socket)
+//        let guid =  fst(h)
+//        let socket = snd(h)
+//        let read = socket.EndReceive(result)
+//        if read <> fakeHttpRequest.GetLength(0) then
+//            printfn "couldn't read fake header, handle"
+//        else
+//            ignore(socket.BeginSend(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerSendCallback,(guid,socket)))
     
-    member this.HeaderReadCallback2(result: IAsyncResult)=
-        let h = result.AsyncState :?> (SocketStore*Socket)
-        let socketStore =  fst(h)
-        let socket = snd(h)
-        let read = socket.EndReceive(result)
-        if read <> fakeHttpRequest.GetLength(0) then
-            printfn "couldn't read fake header, handle"
-        else
-            printfn "fake http request read done, sending response ..."
-            ignore(socket.BeginSend(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerSendCallback2,(socketStore,socket)))
+//    member this.HeaderReadCallback2(result: IAsyncResult)=
+//        let h = result.AsyncState :?> (SocketStore*Socket)
+//        let socketStore =  fst(h)
+//        let socket = snd(h)
+//        let read = socket.EndReceive(result)
+//        if read <> fakeHttpRequest.GetLength(0) then
+//            printfn "couldn't read fake header, handle"
+//        else
+//            printfn "fake http request read done, sending response ..."
+//            ignore(socket.BeginSend(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerSendCallback2,(socketStore,socket)))
 
-    member this.HeaderSendCallback2(result: IAsyncResult)=
-        let h = result.AsyncState :?> (SocketStore*Socket)
-        let socketStore =  fst(h)
-        let socket = snd(h)
-        let  sent = socket.EndSend(result)
-        if sent <> fakeHttpResponse.GetLength(0) then
-            printfn "couldn't send fake header, handle"
-            
-        else
-            printfn "fake response sent. callback .."
-            ignore(callback(socketStore))
+//    member this.HeaderSendCallback2(result: IAsyncResult)=
+//        let h = result.AsyncState :?> (SocketStore*Socket)
+//        let socketStore =  fst(h)
+//        let socket = snd(h)
+//        let  sent = socket.EndSend(result)
+//        if sent <> fakeHttpResponse.GetLength(0) then
+//            printfn "couldn't send fake header, handle"
+//            
+//        else
+//            printfn "fake response sent. callback .."
+//            ignore(callback(socketStore))
+//
+//    member this.HeaderSendCallback(result: IAsyncResult)=
+//        let h = result.AsyncState :?> (byte[]*Socket)
+//        let guid =  fst(h)
+//        let socket = snd(h)
+//        let  sent = socket.EndSend(result)
+//        if sent <> fakeHttpResponse.GetLength(0) then
+//            printfn "couldn't send fake header, handle"
+//            
+//        else
+//            let s = socketStoreMap.[System.Text.Encoding.ASCII.GetString(Array.sub guid 0 16)]
+//            s.AddToMinorSockets(socket,int(guid.[16]))
+//            if s.ConnectedSockets = tcpCount then
+//                do callback(s)
 
-    member this.HeaderSendCallback(result: IAsyncResult)=
-        let h = result.AsyncState :?> (byte[]*Socket)
-        let guid =  fst(h)
-        let socket = snd(h)
-        let  sent = socket.EndSend(result)
-        if sent <> fakeHttpResponse.GetLength(0) then
-            printfn "couldn't send fake header, handle"
-            
-        else
-            let s = socketStoreMap.[System.Text.Encoding.ASCII.GetString(Array.sub guid 0 16)]
-            s.AddToMinorSockets(socket,int(guid.[16]))
-            if s.ConnectedSockets = tcpCount then
-                do callback(s)
-
-type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCount: int,connectionEstablished: SocketStore -> unit, exchangeFakeHeader: bool,dynamic: bool) as this=
+type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCount: int,connectionEstablished: SocketStore -> unit,dynamic: bool) as this=
     let first (c,_,_,_) = c
     let second (_,c,_,_) = c
     let third (_,_,c,_) = c
@@ -188,8 +181,8 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
 
     let callback= new AsyncCallback(this.ConnectCallback)
     let sendCallback = new AsyncCallback(this.SendCallback)
-    let headerSendCallback = new AsyncCallback(this.HeaderSendCallback)
-    let headerReceiveCallback = new AsyncCallback(this.HeaderReceiveCallback)
+//    let headerSendCallback = new AsyncCallback(this.HeaderSendCallback)
+//    let headerReceiveCallback = new AsyncCallback(this.HeaderReceiveCallback)
     member this.Connect(socketStore: SocketStore)=
         if (tcpCount = 1) && (dynamic = false) then
             this.SingleConnect(socketStore)
@@ -232,10 +225,6 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
                         socketStore.MajorSocket <- socket
                     else
                         socketStore.AddToMinorSockets(socket,index)
-                        
-                    if exchangeFakeHeader = true then 
-                        ignore(socket.BeginSend(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerSendCallback,(socket,socketStore,guid,index)))
-                    else
                         do connectionEstablished(socketStore)
 
             else
@@ -260,77 +249,82 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
                 printfn "couldn't send guid"
             else
               //  socketStore.AddMinorSocket(socket)
-                if exchangeFakeHeader = true then
-                    ignore(socket.BeginSend(fakeHttpRequest,0,fakeHttpRequest.GetLength(0),SocketFlags.None,headerSendCallback,result.AsyncState))
-                else
-                    socketStore.AddToMinorSockets(socket,index)
-                    if socketStore.ConnectedSockets = tcpCount then // we have enough tcp connections
-                        do connectionEstablished(socketStore)
-        with 
-        | :? SocketException -> socketStore.Close()
-        | :? ObjectDisposedException -> ()
-
-    member this.HeaderSendCallback(result: IAsyncResult) =
-        let h = result.AsyncState :?> (Socket*SocketStore*byte[]*int)
-        let socket = first(h)
-        let socketStore = second(h)
-        let guid = third(h)
-        let index = fourth(h)
-        try
-            let sentCount = socket.EndSend(result)
-            if sentCount <> fakeHttpRequest.GetLength(0) then
-                printfn "couldn't send fake request, handle"
-            else
-                printfn "fake request sent, reading response ... "
-                ignore(socket.BeginReceive(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerReceiveCallback,(socket,socketStore,guid,index)))
-        with 
-        | :? SocketException -> socketStore.Close()
-        | :? ObjectDisposedException -> ()
-
-    member this.HeaderReceiveCallback(result: IAsyncResult) =
-        let h = result.AsyncState :?> (Socket*SocketStore*byte[]*int)
-        let socket = first(h)
-        let socketStore = second(h)
-        let guid = third(h)
-        let index = fourth(h)
-        try
-            let receiveCount = socket.EndReceive(result)
-        
-            if receiveCount <> fakeHttpResponse.GetLength(0) then
-                printfn "couldn't read fake response, handle"
-            else
-                printfn "response received. callback ..."
-                if tcpCount = 1 then
-                //    printfn "connection established"
+                socketStore.AddToMinorSockets(socket,index)
+                if socketStore.ConnectedSockets = tcpCount then // we have enough tcp connections
                     do connectionEstablished(socketStore)
-                else
-                    socketStore.AddToMinorSockets(socket,index)
-                    if socketStore.ConnectedSockets = tcpCount then // we have enough tcp connections
-                        do connectionEstablished(socketStore)
         with 
         | :? SocketException -> socketStore.Close()
         | :? ObjectDisposedException -> ()
+
+//    member this.HeaderSendCallback(result: IAsyncResult) =
+//        let h = result.AsyncState :?> (Socket*SocketStore*byte[]*int)
+//        let socket = first(h)
+//        let socketStore = second(h)
+//        let guid = third(h)
+//        let index = fourth(h)
+//        try
+//            let sentCount = socket.EndSend(result)
+//            if sentCount <> fakeHttpRequest.GetLength(0) then
+//                printfn "couldn't send fake request, handle"
+//            else
+//                printfn "fake request sent, reading response ... "
+//                ignore(socket.BeginReceive(fakeHttpResponse,0,fakeHttpResponse.GetLength(0),SocketFlags.None,headerReceiveCallback,(socket,socketStore,guid,index)))
+//        with 
+//        | :? SocketException -> socketStore.Close()
+//        | :? ObjectDisposedException -> ()
+//
+//    member this.HeaderReceiveCallback(result: IAsyncResult) =
+//        let h = result.AsyncState :?> (Socket*SocketStore*byte[]*int)
+//        let socket = first(h)
+//        let socketStore = second(h)
+//        let guid = third(h)
+//        let index = fourth(h)
+//        try
+//            let receiveCount = socket.EndReceive(result)
+//        
+//            if receiveCount <> fakeHttpResponse.GetLength(0) then
+//                printfn "couldn't read fake response, handle"
+//            else
+//                printfn "response received. callback ..."
+//                if tcpCount = 1 then
+//                //    printfn "connection established"
+//                    do connectionEstablished(socketStore)
+//                else
+//                    socketStore.AddToMinorSockets(socket,index)
+//                    if socketStore.ConnectedSockets = tcpCount then // we have enough tcp connections
+//                        do connectionEstablished(socketStore)
+//        with 
+//        | :? SocketException -> socketStore.Close()
+//        | :? ObjectDisposedException -> ()
 
 type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int,readFakeRequest: bool,sendFakeRequest: bool, dynamicTcpCount: bool, isDynamicOnForward: bool ) as this =
     let max x y = 
         if x > y then x
         else y
 
-    let server = new Server(listenOnPort,listenTcpConnectionCount,this.connectionReceivedCallback,max listenTcpConnectionCount forwardTcpConnectionCount,readFakeRequest,(dynamicTcpCount && (isDynamicOnForward=false)))
-    let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,this.connectionEstablishedCallback,sendFakeRequest,(dynamicTcpCount && (isDynamicOnForward=true)))
+    let server = new Server(listenOnPort,listenTcpConnectionCount,this.connectionReceivedCallback,max listenTcpConnectionCount forwardTcpConnectionCount,(dynamicTcpCount && (isDynamicOnForward=false)))
+    let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,this.connectionEstablishedCallback,(dynamicTcpCount && (isDynamicOnForward=true)))
     let monitor = new Monitor(this.MonitorFired)
     let mutable connect = 0
-        
+    
     do  
+        
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
+            monitor.Start()
             server.StartListening()
         else
             printfn "multi to multi relay not supported yet, and can be easily accomplished with two relays"
 
     member this.MonitorFired(chosenObject: obj)=
         let store = chosenObject :?> SocketStore
+
         printfn "implement"
-        
+
+    member this.throttleUpPipe(pipe: SocketStore, growSize: int)= 
+        printfn "implement"  
+     //    let pauseAtByteCount = (pipe.Splitter :?> StreamSplitter).Pause()
+    
+    
     member this.connectionReceivedCallback(socketStore: SocketStore)=
         client.Connect(socketStore)
 
@@ -340,5 +334,6 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             let splitter = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,segmentSize,minorConnectionBufferSize)
             socketStore.Merger <- merger
             socketStore.Splitter <- splitter
-            
-            monitor.Add(socketStore)
+            if dynamicTcpCount = true && isDynamicOnForward = true then
+                monitor.Add(socketStore)
+        

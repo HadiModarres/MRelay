@@ -74,11 +74,11 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
 
     
 
-    member this.Flush(flushDone: unit-> unit) =
+    member this.Flush(flushDone: uint64-> unit) =
         if totalAvailable = 0 then // no data to be sent
             ()//do flushDone()
         else
-           
+            
             do this.SendMore(flushDone)
 
     member this.HaveMoreRoom() =
@@ -108,7 +108,7 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
 
             
         
-    member private this.SendMore(flushDone:unit -> unit) =
+    member private this.SendMore(flushDone:uint64 -> unit) =
             try
                 ignore(socket.BeginSend(buffer,totalSent,totalAvailable-totalSent,SocketFlags.None,callback,flushDone))
             with 
@@ -118,13 +118,13 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
     member private this.SendToMajorSocketCallback(result: IAsyncResult)=
             try
                 let sentBytes = socket.EndSend(result)
-                let (f:unit -> unit)=(result.AsyncState) :?> (unit -> unit)
+                let (f:uint64 -> unit)=(result.AsyncState) :?> (uint64 -> unit)
                 if sentBytes > 0 then
                     totalSent <- (totalSent + sentBytes)
                     if totalSent = totalAvailable then // sent all data
-                
+                        let temp = (uint64)totalSent 
                         do this.Reset()
-                        do f()
+                        do f(temp)
                     else
                         this.SendMore(f) // send the rest
                 else  // failed to send any data
@@ -139,19 +139,27 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
         totalSent <- 0
 
 [<AllowNullLiteral>]
-type StreamMerger(socketManager: ISocketManager,majorSocket:Socket,minorSockets: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
-    let majorSocketBufferSize = (minorSockets.GetLength(0))*minorSocketBufferSize
+type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
+    let majorSocketBufferSize = (minorSock.GetLength(0))*minorSocketBufferSize
     let majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<MinorSocket>()
-    let majorSocket = new MajorSocket(majorSocket,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
+    let majorSocket = new MajorSocket(majorSock,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
     let mutable feeding = false
     let lockobj = new obj()
     let lockobj2 = new obj()
     let timerCallback = new TimerCallback(this.feedDriver)
     let timer = new Threading.Timer(timerCallback)
     let mutable dataOver = false
+
+    let mutable paused = false
+    let mutable pausePending = false
+    let mutable totalTransferedData = 0UL
+    let mutable pauseAtCount = 0UL
+    let mutable pauseCallback =
+        fun () -> ()
+    
     do
-        for sock in minorSockets do
+        for sock in minorSock do
             let min = new MinorSocket(sock,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
             minorStreamQueue.Enqueue(min)
         
@@ -166,13 +174,18 @@ type StreamMerger(socketManager: ISocketManager,majorSocket:Socket,minorSockets:
     member this.SocketExceptionOccured(sock: Socket,exc:Exception) = 
           socketManager.SocketExceptionOccured sock exc
 
-    member this.MajorSocketFlushDone() =              
-        feeding <- false
-        ignore(timer.Change(0,Timeout.Infinite))
+    member this.MajorSocketFlushDone(flushedCount: uint64) =              
+        totalTransferedData <- (totalTransferedData + flushedCount)
+        if (pausePending = true) && (totalTransferedData = pauseAtCount) then
+            paused <- true
+            pausePending <- false
+            do pauseCallback()
+        else
+            feeding <- false
+            ignore(timer.Change(0,Timeout.Infinite))
         
     member this.feedDriver(timerObj: obj) =
         if feeding = false then
-//            let mutable ass =false
             while this.FeedMajorSocket() do
                 feeding <- true
             if feeding then
@@ -180,9 +193,20 @@ type StreamMerger(socketManager: ISocketManager,majorSocket:Socket,minorSockets:
                 majorSocket.Flush(this.MajorSocketFlushDone)
             else
                 if dataOver = false then
-                    ignore(timer.Change(100,Timeout.Infinite))
+                    ignore(timer.Change(20,Timeout.Infinite))
 
-        
+    member this.Pause(pauseAt: uint64,callback: unit->unit)=
+        if paused = false && pausePending = false then
+            pauseAtCount <- pauseAt
+            pausePending <- true
+            pauseCallback <- callback
+
+    member this.Resume()=
+        if paused = true then
+            feeding <- false
+            ignore(timer.Change(0,Timeout.Infinite))
+            paused <- false
+
     member this.FeedMajorSocket():bool =
         if majorSocket.HaveMoreRoom() then     
                 let sock = minorStreamQueue.Peek()
@@ -212,5 +236,4 @@ type StreamMerger(socketManager: ISocketManager,majorSocket:Socket,minorSockets:
             
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            printfn "implement"
-            0
+            totalTransferedData

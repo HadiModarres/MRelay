@@ -18,10 +18,10 @@ open System.Threading
 open System.Collections
 open System.Security.Cryptography
 open System.Threading.Tasks
-open Pipe
+open EncryptedPipe
 open phelix
 
-type StreamDecryptor(pipe: Pipe) as this = 
+type StreamDecryptor(pipe: EncryptedPipe) as this = 
     
     
     let phelix = new Phelix(true,pipe.GetKeyCopy(),0,pipe.GetKeyCopy().GetLength(0),pipe.GetIVCopy(),0,pipe.GetIVCopy().GetLength(0))

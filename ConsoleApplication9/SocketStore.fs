@@ -22,6 +22,8 @@ open IDataPipe
 open ISocketManager
 
 
+
+
 type SocketStore(minorCount: int)=
     let mutable connectedSockets = 0
     let mutable majorSocket: Socket = null
@@ -40,23 +42,19 @@ type SocketStore(minorCount: int)=
         and set y = majorSocket <- y
     member x.MinorSockets
         with get() = minorSockets
-
     member x.AddToMinorSockets(sock:Socket,sockIndex: int)=
         Monitor.Enter lockobj2
         connectedSockets <- (connectedSockets + 1)
         minorSockets.[sockIndex] <- sock
         Monitor.Exit lockobj2
-    
     member x.ConnectedSockets
            with get()= connectedSockets
-
     member x.Splitter
             with get() = splitter
             and set(s: IDataPipe) = splitter <- s
     member x.Merger
             with get() = merger
-            and set(m: IDataPipe) = merger <- m
-    
+            and set(m: IDataPipe) = merger <- m    
     member x.SyncMajorReadDone() =
        // printfn "major read done"
         try
@@ -83,15 +81,11 @@ type SocketStore(minorCount: int)=
 
         minorMajorDirectionDone <- true
         if majorMinorDirectionDone then
-            x.Close()
-       
-
-    
+            x.Close()           
     member private x.Syncer(f:unit->unit) =
         Monitor.Enter lockobj
         f()
         Monitor.Exit lockobj
-
     member x.Close()= 
         for sock: Socket in minorSockets do
             if sock <> null then
@@ -109,4 +103,4 @@ type SocketStore(minorCount: int)=
             x.Syncer(x.SyncMinorReadDone)
         member x.SocketExceptionOccured sock exc  =
             x.Close()
-            
+    

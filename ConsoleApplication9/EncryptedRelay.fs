@@ -20,7 +20,7 @@ open Merger
 open Splitter
 open StreamEncryptor
 open StreamDecryptor
-open Pipe
+open EncryptedPipe
 open System.IO
 open System.Threading.Tasks
 open System.Security.Cryptography
@@ -68,7 +68,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let encryptedKeyIVSent (completedTask: Task) (pipe:obj) =
             Monitor.Enter obj3
 
-            let p = pipe :?> Pipe
+            let p = pipe :?> EncryptedPipe
             if completedTask.Status <> TaskStatus.RanToCompletion then
                 p.Close()
             else
@@ -83,7 +83,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let obj2 = new obj()
         let publicKeyReceived (completedTask: Task<string>) ( pipe: obj) =
             Monitor.Enter obj2
-            let p = pipe :?> Pipe
+            let p = pipe :?> EncryptedPipe
             if completedTask.Status <> TaskStatus.RanToCompletion then
                  p.Close()
             else
@@ -102,7 +102,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let keyIVRead(completedTask:Task) (pipe: obj)=
             
             Monitor.Enter obj5
-            let p = pipe :?> Pipe
+            let p = pipe :?> EncryptedPipe
             if completedTask.Status <> TaskStatus.RanToCompletion then
                 p.Close()
             else
@@ -126,7 +126,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let obj4 = new obj()
         let publicKeySent (completedTask: Task) ( pipe: obj) =
             Monitor.Enter obj4
-            let p = pipe :?> Pipe
+            let p = pipe :?> EncryptedPipe
             if completedTask.Status <> TaskStatus.RanToCompletion then
                 p.Close()
             else
@@ -147,7 +147,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
             newSocket.EndConnect(result)
             let receiveStream = new NetworkStream(receivedSocket)
             let sendStream = new NetworkStream(newSocket)
-            let newPipe = new Pipe(receiveStream,sendStream,receivedSocket,newSocket,encryptReceive)
+            let newPipe = new EncryptedPipe(receiveStream,sendStream,receivedSocket,newSocket,encryptReceive)
             totalPipes <- (totalPipes + 1)
             try
                 if encryptReceive = true then 

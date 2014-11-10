@@ -51,13 +51,16 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="PipeStates.fs" />
+    <Compile Include="IPipeManager.fs" />
     <Compile Include="IDataPipe.fs" />
     <Compile Include="ISocketManager.fs" />
-    <Compile Include="Pipe.fs" />
+    <Compile Include="EncryptedPipe.fs" />
     <None Include="App.config" />
     <Compile Include="Splitter.fs" />
     <Compile Include="Merger.fs" />
     <Compile Include="SocketStore.fs" />
+    <Compile Include="Pipe.fs" />
     <Compile Include="RelayMonitor.fs" />
     <Compile Include="Relay.fs" />
     <Compile Include="StreamEncryptor.fs" />

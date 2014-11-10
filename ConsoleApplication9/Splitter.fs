@@ -102,6 +102,12 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     let mutable sendingSocketCount = 0 
     let flushDoneLockObj = new obj()
 
+    let mutable paused = false
+    let mutable pendingData = 0UL
+    let mutable totalTransferedData = 0UL
+    let mutable pauseCallback =
+        fun (a:uint64) -> ()
+
     do 
         for socket in minorSockets do
              minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
@@ -110,12 +116,20 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
        
             
     
+    member private this.MinorFlushesDone()=
+        totalTransferedData <- (totalTransferedData + pendingData)
+        pendingData <- 0UL
+        if paused = true then
+            pauseCallback totalTransferedData
+        else
+            this.ReadMoreData()
+                
 
     member this.MinorSocketFlushDone(minorSocket: obj) =
             Monitor.Enter flushDoneLockObj        
             sendingSocketCount <- (sendingSocketCount - 1)
             if sendingSocketCount = 0 then
-                this.ReadMoreData()
+                this.MinorFlushesDone()
             Monitor.Exit flushDoneLockObj
 
     member this.ReceiveToMajorSocketCallback(result: IAsyncResult) =
@@ -124,6 +138,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
                 if readCount < 1 then
                     this.majorReadDone()
                 else
+                    pendingData <- (uint64) readCount
                     let buff = Array.create readCount (new Byte())
                     Array.blit majorSocketBuffer 0 buff 0 readCount
                     this.SplitData buff
@@ -160,7 +175,21 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     member this.majorReadDone()=
         socketManager.MajorReadDone()
 
+    member this.Pause(callback: uint64->unit)=
+        Monitor.Enter flushDoneLockObj
+        if paused = false then
+            paused <- true
+            pauseCallback <- callback
+        Monitor.Exit flushDoneLockObj
+    member this.Resume() =
+        Monitor.Enter flushDoneLockObj
+        if paused = true then
+            paused <- false
+            this.ReadMoreData()
+        Monitor.Exit flushDoneLockObj
+          
+
     interface IDataPipe with
         member x.TotalTransferedData()= 
             printfn "implement"
-            0
+            0UL

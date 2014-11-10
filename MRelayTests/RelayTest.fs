@@ -13,7 +13,7 @@ open System.Collections
 open SocketStore
 open Relay
 [<TestClass>]
-type RelayTest() = 
+type RelayTest() =   
     let getAvilablePort() =
         let l = new TcpListener(IPAddress.Loopback,0)
         l.Start()
