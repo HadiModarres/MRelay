@@ -29,12 +29,10 @@ type SocketStore(minorCount: int)=
     let mutable majorSocket: Socket = null
     let mutable majorMinorDirectionDone = false
     let mutable minorMajorDirectionDone = false
-    let mutable splitter: IDataPipe = null
-    let mutable merger: IDataPipe = null
+    
     let mutable merger = null
     let lockobj = new obj()
     let lockobj2 = new obj()
-
     let minorSockets = Array.create minorCount (null)
 
     member x.MajorSocket 
@@ -47,14 +45,17 @@ type SocketStore(minorCount: int)=
         connectedSockets <- (connectedSockets + 1)
         minorSockets.[sockIndex] <- sock
         Monitor.Exit lockobj2
+    member x.AddToMinorSockets(sock:Socket)=
+        Monitor.Enter lockobj2
+        minorSockets.[connectedSockets] <- sock
+        let con = connectedSockets
+        connectedSockets <- (connectedSockets + 1)
+        Monitor.Exit lockobj2
+        con
+
     member x.ConnectedSockets
            with get()= connectedSockets
-    member x.Splitter
-            with get() = splitter
-            and set(s: IDataPipe) = splitter <- s
-    member x.Merger
-            with get() = merger
-            and set(m: IDataPipe) = merger <- m    
+       
     member x.SyncMajorReadDone() =
        // printfn "major read done"
         try
@@ -95,7 +96,8 @@ type SocketStore(minorCount: int)=
             majorSocket.Close()
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            merger.TotalTransferedData() + splitter.TotalTransferedData()  
+            printfn "stub"
+            0UL  
     interface ISocketManager with
         member x.MajorReadDone() =
             x.Syncer(x.SyncMajorReadDone) 

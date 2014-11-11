@@ -44,8 +44,8 @@ type RelayTest() =
 
     member x.TestFileTransfer (tcpCount: int, segmentSize: int, minorSocketBufferSize: int,fake: bool) = 
         let newp = getAvilablePort()
-        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,false,fake,true,true)))
-        let t2 = new Thread( fun () -> ignore(new Relay(5000,tcpCount,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,segmentSize,minorSocketBufferSize,fake,false,true,false)))
+        let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,true)))
+        let t2 = new Thread( fun () -> ignore(new Relay(5000,tcpCount,Dns.GetHostAddresses("127.0.0.1").[0],6000,1,segmentSize,minorSocketBufferSize,false)))
         
         t1.IsBackground <- true
         t2.IsBackground <- true
