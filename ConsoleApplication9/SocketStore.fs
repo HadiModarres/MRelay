@@ -33,7 +33,7 @@ type SocketStore(minorCount: int)=
     let mutable merger = null
     let lockobj = new obj()
     let lockobj2 = new obj()
-    let minorSockets = Array.create minorCount (null)
+    let mutable minorSockets = Array.create minorCount (null)
 
     member x.MajorSocket 
         with get() = majorSocket
@@ -55,7 +55,10 @@ type SocketStore(minorCount: int)=
 
     member x.ConnectedSockets
            with get()= connectedSockets
-       
+      
+    member x.GrowMinorArray(growSize: int)=
+        let gar = Array.create (growSize) (null)
+        minorSockets <- Array.append minorSockets gar
     member x.SyncMajorReadDone() =
        // printfn "major read done"
         try

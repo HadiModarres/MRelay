@@ -106,7 +106,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     let mutable pendingData = 0UL
     let mutable totalTransferedData = 0UL
     let mutable pauseCallback =
-        fun (a:uint64) -> ()
+        fun () -> ()
 
     do 
         for socket in minorSockets do
@@ -116,11 +116,14 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
        
             
     
+    member this.TotalData 
+        with get() = totalTransferedData
+
     member private this.MinorFlushesDone()=
         totalTransferedData <- (totalTransferedData + pendingData)
         pendingData <- 0UL
         if paused = true then
-            pauseCallback totalTransferedData
+            pauseCallback() 
         else
             this.ReadMoreData()
                 
@@ -175,7 +178,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     member this.majorReadDone()=
         socketManager.MajorReadDone()
 
-    member this.Pause(callback: uint64->unit)=
+    member this.Pause(callback: unit->unit)=
         Monitor.Enter flushDoneLockObj
         if paused = false then
             paused <- true
@@ -187,7 +190,13 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             paused <- false
             this.ReadMoreData()
         Monitor.Exit flushDoneLockObj
-          
+    
+    member this.UpdateMinorSockets(mins: Socket[])=
+        printfn "splitter: updating minor sockets, count: %i" (mins.GetLength(0))
+        minorStreamQueue.Clear()
+        for socket in mins do
+             minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
+
 
     interface IDataPipe with
         member x.TotalTransferedData()= 

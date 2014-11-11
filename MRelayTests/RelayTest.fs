@@ -36,12 +36,13 @@ type RelayTest() =
     
     [<TestMethod>]
     member x.TestSingleTcpFakeHeader()=
-        x.TestFileTransfer(1,64*1024,64*1024,true)
+        x.TestFileTransfer(1,1024,2048,true)
 
     [<TestMethod>]
     member x.TestMultiTcpFakeHeader()=
         x.TestFileTransfer(6,64*1024,64*1024,true)
 
+      
     member x.TestFileTransfer (tcpCount: int, segmentSize: int, minorSocketBufferSize: int,fake: bool) = 
         let newp = getAvilablePort()
         let t1 = new Thread( fun () -> ignore(new Relay(4000,1,Dns.GetHostAddresses("127.0.0.1").[0],5000,tcpCount,segmentSize,minorSocketBufferSize,true)))
@@ -65,6 +66,8 @@ type RelayTest() =
                    
             t4.Start()
         
+            //Thread.Sleep(3000)
+
             t5.Join()
             t3.Join()
             t4.Join()

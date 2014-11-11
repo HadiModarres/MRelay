@@ -234,6 +234,12 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
         else
             false
             
+    member this.UpdateMinorSockets(mins: Socket[])=
+        printfn "merger: updating minor sockets, count: %i" (mins.GetLength(0))
+        minorStreamQueue.Clear()
+        for socket in mins do
+             minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
+
     interface IDataPipe with
         member x.TotalTransferedData()= 
             totalTransferedData

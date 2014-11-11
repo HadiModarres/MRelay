@@ -161,7 +161,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
 //    let monitor = new Monitor(this.MonitorFired)
  //   let mutable connect = 0
-    
+        
     do  
         
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
@@ -174,10 +174,11 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         member x.needAConnection(pipe: obj) =
             let p = pipe :?> Pipe
             client.Connect(p)
+            
         member x.getSegmentSize() =
             segmentSize            
         member x.getMinorSocketBufferSize()  =
             minorConnectionBufferSize
-    
+        
 
   
