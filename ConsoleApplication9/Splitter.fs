@@ -95,12 +95,13 @@ type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,s
 
 [<AllowNullLiteral>]
 type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSockets: Socket[],segmentSize: int,minorSocketBufferSize: int) as this =   // major socket receives and splits the stream to send to minor streams
-    let majorSocketBufferSize = minorSockets.GetLength(0)*minorSocketBufferSize
-    let majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
+    let mutable majorSocketBufferSize = minorSockets.GetLength(0)*minorSocketBufferSize
+    let mutable majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<MinorSocket>()
     let callback1 = new AsyncCallback(this.ReceiveToMajorSocketCallback)
     let mutable sendingSocketCount = 0 
     let flushDoneLockObj = new obj()
+    let mutable readingMore = false
 
     let mutable paused = false
     let mutable pendingData = 0UL
@@ -114,8 +115,6 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
 
         this.ReadMoreData()
        
-            
-    
     member this.TotalData 
         with get() = totalTransferedData
 
@@ -136,6 +135,10 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             Monitor.Exit flushDoneLockObj
 
     member this.ReceiveToMajorSocketCallback(result: IAsyncResult) =
+            if paused = true then
+                Thread.Sleep(10)
+                this.ReceiveToMajorSocketCallback(result)
+            readingMore <- false
             try
                 let readCount = majorSocket.EndReceive(result)
                 if readCount < 1 then
@@ -171,6 +174,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     member this.ReadMoreData() = 
      //       printfn "reading more data"
             try
+                readingMore <- true
                 ignore(majorSocket.BeginReceive(majorSocketBuffer,0,majorSocketBufferSize,SocketFlags.None,callback1,null))
             with 
             | :? SocketException as e-> this.SocketExceptionOccured(majorSocket,e)
@@ -183,6 +187,9 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
         if paused = false then
             paused <- true
             pauseCallback <- callback
+            if readingMore =true then
+                pauseCallback() 
+            
         Monitor.Exit flushDoneLockObj
     member this.Resume() =
         Monitor.Enter flushDoneLockObj
@@ -192,13 +199,13 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
         Monitor.Exit flushDoneLockObj
     
     member this.UpdateMinorSockets(mins: Socket[])=
-        printfn "splitter: updating minor sockets, count: %i" (mins.GetLength(0))
+     //   printfn "splitter: updating minor sockets, count: %i" (mins.GetLength(0))
         minorStreamQueue.Clear()
         for socket in mins do
              minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
-
+        majorSocketBufferSize <- mins.GetLength(0)*minorSocketBufferSize
+        majorSocketBuffer <- Array.create majorSocketBufferSize (new Byte())
 
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            printfn "implement"
-            0UL
+            totalTransferedData

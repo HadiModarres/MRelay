@@ -46,10 +46,11 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             state <- PipeState.ThrottlingUp_ExchangingInfo
             let buf = Array.create 12 (new Byte())
             ignore(socket.BeginReceive(buf,0,12,SocketFlags.None,minorReadCallback,(socket,buf)))
-        | PipeState.AcceptingConnections when isMajorSocketOnRelayListenSide = false ->
+        | PipeState.ThrottlingUp_ConnectingAll when isMajorSocketOnRelayListenSide = false ->
             this.ReadSocketIndex(socket)
         
     member public this.SocketConnected(socket: Socket)=
+        
         match state with
         | PipeState.Connecting when isMajorSocketOnRelayListenSide= false ->
             socketStore.MajorSocket <- socket;
@@ -77,7 +78,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             let buf = Array.create 1 (new Byte());
             buf.[0] <- (byte) index;
             ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;  // check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
-            if socketStore.ConnectedSockets = minorCount then
+            if socketStore.ConnectedSockets = socketStore.MinorSockets.GetLength(0) then
                 splitter.UpdateMinorSockets(socketStore.MinorSockets)
                 merger.UpdateMinorSockets(socketStore.MinorSockets)
                 state <- PipeState.Relaying
@@ -102,7 +103,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             //state <- PipeState.ThrottlingUp_ExchangingInfo
             let socket = socketStore.MinorSockets.[socketStore.MinorSockets.GetLength(0)-throttleUpSize]
             state <- PipeState.ThrottlingUp_ConnectingAll
-            ignore(socket.BeginSend(BitConverter.GetBytes(splitter.TotalData),0,4,SocketFlags.None,null,null))
+            ignore(socket.BeginSend(BitConverter.GetBytes(splitter.TotalData),0,8,SocketFlags.None,null,null))
             
             
     member private this.MergerPaused()=

@@ -49,6 +49,7 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         newPipe.GUID <- newGuid
         let sc = e :?> SocketAsyncEventArgs
         let newSocket = sc.AcceptSocket
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         newPipe.NewSocketReceived(newSocket)
         this.SingleListen()
@@ -64,6 +65,7 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
     member this.MultiAccept(e: obj)=
         let sc = e :?> SocketAsyncEventArgs
         let newSocket = sc.AcceptSocket
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         let guid = Array.create guidSize (new Byte())
         ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
@@ -119,6 +121,7 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
 
     member this.Connect(pipe: Pipe) =
         let s= new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
+        s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         ignore(s.BeginConnect(forwardRelayAddress,forwardRelayPort,callback,(s,pipe)))
 

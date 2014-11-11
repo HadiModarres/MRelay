@@ -197,9 +197,12 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
 
     member this.Pause(pauseAt: uint64,callback: unit->unit)=
         if paused = false && pausePending = false then
-            pauseAtCount <- pauseAt
-            pausePending <- true
-            pauseCallback <- callback
+            if pauseAt = totalTransferedData then
+                callback()
+            else
+                pauseAtCount <- pauseAt
+                pausePending <- true
+                pauseCallback <- callback
 
     member this.Resume()=
         if paused = true then
