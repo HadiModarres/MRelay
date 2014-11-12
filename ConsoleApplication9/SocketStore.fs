@@ -30,7 +30,7 @@ type SocketStore(minorCount: int)=
     let mutable majorMinorDirectionDone = false
     let mutable minorMajorDirectionDone = false
     
-    let mutable merger = null
+//    let mutable merger = null
     let lockobj = new obj()
     let lockobj2 = new obj()
     let mutable minorSockets = Array.create minorCount (null)

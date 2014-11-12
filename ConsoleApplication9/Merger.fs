@@ -140,8 +140,8 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
 
 [<AllowNullLiteral>]
 type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
-    let majorSocketBufferSize = (minorSock.GetLength(0))*minorSocketBufferSize
-    let majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
+    let mutable majorSocketBufferSize = (minorSock.GetLength(0))*minorSocketBufferSize
+    let mutable majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<MinorSocket>()
     let majorSocket = new MajorSocket(majorSock,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
     let mutable feeding = false
@@ -151,13 +151,17 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
     let timer = new Threading.Timer(timerCallback)
     let mutable dataOver = false
 
-    let mutable paused = false
-    let mutable pausePending = false
+    
     let mutable totalTransferedData = 0UL
-    let mutable pauseAtCount = 0UL
     let mutable pauseCallback =
         fun () -> ()
     
+
+    let mutable cycleCallback =
+        fun() -> ()
+
+    let mutable dataNeededToCompleteCycle = majorSocketBufferSize
+
     do
         for sock in minorSock do
             let min = new MinorSocket(sock,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
@@ -175,19 +179,20 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
           socketManager.SocketExceptionOccured sock exc
 
     member this.MajorSocketFlushDone(flushedCount: uint64) =              
+        
         totalTransferedData <- (totalTransferedData + flushedCount)
-        if (pausePending = true) && (totalTransferedData = pauseAtCount) then
-            paused <- true
-            pausePending <- false
-            do pauseCallback()
+        if dataNeededToCompleteCycle = 0 then
+            dataNeededToCompleteCycle <- majorSocketBufferSize
+            cycleCallback()
         else
             feeding <- false
             ignore(timer.Change(0,Timeout.Infinite))
         
     member this.feedDriver(timerObj: obj) =
         if feeding = false then
-            while this.FeedMajorSocket() do
+            while (this.FeedMajorSocket() && (dataNeededToCompleteCycle <> 0)) do
                 feeding <- true
+
             if feeding then
                 ignore(timer.Change(Timeout.Infinite,Timeout.Infinite))
                 majorSocket.Flush(this.MajorSocketFlushDone)
@@ -195,20 +200,21 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                 if dataOver = false then
                     ignore(timer.Change(20,Timeout.Infinite))
 
-    member this.Pause(pauseAt: uint64,callback: unit->unit)=
-        if paused = false && pausePending = false then
-            if pauseAt = totalTransferedData then
-                callback()
-            else
-                pauseAtCount <- pauseAt
-                pausePending <- true
-                pauseCallback <- callback
-
-    member this.Resume()=
-        if paused = true then
-            feeding <- false
-            ignore(timer.Change(0,Timeout.Infinite))
-            paused <- false
+//    member this.Pause(pauseAt: uint64,callback: unit->unit)=
+//        if paused = false && pausePending = false then
+//            if pauseAt = totalTransferedData then
+//                callback()
+//            else
+//                pauseAtCount <- pauseAt
+//                pausePending <- true
+//                pauseCallback <- callback
+//
+//    member this.Resume()=
+//        if paused = true then
+//            feeding <- false
+//            paused <- false
+//            pausePending <- false
+//            ignore(timer.Change(0,Timeout.Infinite))
 
     member this.FeedMajorSocket():bool =
         if majorSocket.HaveMoreRoom() then     
@@ -223,6 +229,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                     let remainder = snd(h)
 
                     if enoughDataForSegment then
+                        dataNeededToCompleteCycle <- (dataNeededToCompleteCycle - segmentSize)
                         if (remainder <> null) && (remainder.GetLength(0)>0) then
                             sock.TooMuchData(remainder)
                         let s = minorStreamQueue.Dequeue()
@@ -236,12 +243,27 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                     false
         else
             false
-            
-    member this.UpdateMinorSockets(mins: Socket[])=
-        printfn "merger: updating minor sockets, count: %i" (mins.GetLength(0))
-        minorStreamQueue.Clear()
-        for socket in mins do
-             minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
+    
+    member this.CycleCallbck
+        with get() = cycleCallback
+        and set(f:unit->unit)= cycleCallback <- f
+    member this.Cycle()=
+        feeding <- false
+        ignore(timer.Change(0,Timeout.Infinite))
+        
+//    member this.UpdateMinorSockets(mins: Socket[],newCount: int)=
+//        printfn "merger: updating minor sockets, count: %i" (mins.GetLength(0))
+//        minorStreamQueue.Clear()
+//        for socket in mins do
+//             minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
+//        majorSocketBufferSize <- mins.GetLength(0)*minorSocketBufferSize
+//        majorSocketBuffer <- Array.create majorSocketBufferSize (new Byte())
+//        
+////        for sock in minorStreamQueue.ToArray() do
+////            sock.StartReading();
+//        for i=(mins.GetLength(0)-1) downto (mins.GetLength(0)-newCount) do
+//            minorStreamQueue.ToArray().[i].StartReading() 
+//        //ignore(timer.Change(0,Timeout.Infinite))
 
     interface IDataPipe with
         member x.TotalTransferedData()= 

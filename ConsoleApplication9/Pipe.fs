@@ -23,8 +23,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let mutable throttleUpSize = 0
     let timerCallback = new TimerCallback(this.ThrottleTest)
     let timer = new Threading.Timer(timerCallback)
-    do 
-        ignore(timer.Change(4000,Timeout.Infinite))
+   // do 
+        //ignore(timer.Change(4000,Timeout.Infinite))
     
     member this.ThrottleTest(timerObj: obj)=
         this.ThrottleUp(80)
@@ -79,18 +79,21 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             buf.[0] <- (byte) index;
             ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;  // check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
             if socketStore.ConnectedSockets = socketStore.MinorSockets.GetLength(0) then
-                splitter.UpdateMinorSockets(socketStore.MinorSockets)
-                merger.UpdateMinorSockets(socketStore.MinorSockets)
+//                splitter.UpdateMinorSockets(socketStore.MinorSockets)
+//                merger.UpdateMinorSockets(socketStore.MinorSockets,throttleUpSize)
                 state <- PipeState.Relaying
-                splitter.Resume()
-                merger.Resume()
+//                splitter.Resume()
+//                merger.Resume()
+//                splitter <- new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+//                merger <- new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+
 
     member public this.ThrottleUp(byHowManyConnections: int)=
         match state with
         |PipeState.Relaying when isMajorSocketOnRelayListenSide= true ->
             throttleUpSize <- byHowManyConnections
             state <- PipeState.ThrottlingUp_PausingSplitter 
-            splitter.Pause(this.SplitterPaused)
+//            splitter.Pause(this.SplitterPaused)
         //| a -> raise(new Exception("pipe: Throttle up requested when not relaying or when major not on listen side"))
         | _ -> ()
     member private this.SplitterPaused()=
@@ -115,7 +118,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                 pipeManager.needAConnection(this)
         | PipeState.ThrottlingUp_PausingMerger when isMajorSocketOnRelayListenSide = false ->
             state <- PipeState.ThrottlingUp_PausingSplitter
-            splitter.Pause(this.SplitterPaused)
+//            splitter.Pause(this.SplitterPaused)
                 
     member private this.DataReceiveToMajorSocket(result: IAsyncResult)=
         printfn "stub"
@@ -147,8 +150,9 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                 printfn "couldn't read data"
             else
                 state <- PipeState.ThrottlingUp_PausingMerger
-                let pausedAt = BitConverter.ToUInt64(pa,0)
-                merger.Pause(pausedAt,this.MergerPaused)
+                let pausedAt = BitConverter.ToUInt64(pa,0)  
+                printfn "d"
+//                merger.Pause(pausedAt,this.MergerPaused)
         | PipeState.ThrottlingUp_ExchangingInfo when isMajorSocketOnRelayListenSide = false ->
             let h = result.AsyncState :?> (Socket*byte[])
             let socket = fst(h)
@@ -163,7 +167,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                 let pauseAt = BitConverter.ToUInt64(pa,4)
                 socketStore.GrowMinorArray(thu)
                 let index = socketStore.AddToMinorSockets(socket)
-                merger.Pause(pauseAt,this.MergerPaused)
+                printfn "d"
+//                merger.Pause(pauseAt,this.MergerPaused)
         | PipeState.ThrottlingUp_ConnectingAll when isMajorSocketOnRelayListenSide = false ->
             let h = result.AsyncState :?> (Socket*byte[])
             let socket =  fst(h)
@@ -174,11 +179,14 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             else
                 socketStore.AddToMinorSockets(socket,((int)(socketIndex.[0])))
                 if socketStore.ConnectedSockets = socketStore.MinorSockets.GetLength(0) then // we have received enough connections, now try to connect 
-                    splitter.UpdateMinorSockets(socketStore.MinorSockets)
-                    merger.UpdateMinorSockets(socketStore.MinorSockets)
-                    state <- PipeState.Relaying
-                    splitter.Resume()
-                    merger.Resume()
+//                    splitter.UpdateMinorSockets(socketStore.MinorSockets)
+//                    merger.UpdateMinorSockets(socketStore.MinorSockets,throttleUpSize)
+//                    state <- PipeState.Relaying
+//                    splitter.Resume()
+//                    merger.Resume()
+                      printfn "stub"
+//                    splitter <- new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+//                    merger <- new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
 
     member private this.DataSendToMinorSocket(result: IAsyncResult)=
         printfn "implement"
@@ -192,7 +200,9 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     member private this.InitRelay()=
         state <- PipeState.Relaying
         splitter <- new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+        splitter.CycleCallbck <- splitter.Cycle
         merger <- new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.MinorSockets,pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+        merger.CycleCallbck <- merger.Cycle
 
     member this.Close()= 
         printfn "stub"
