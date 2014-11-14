@@ -97,6 +97,7 @@ type SocketStore(minorCount: int)=
                 
         if majorSocket <> null then
             majorSocket.Close()
+        
     interface IDataPipe with
         member x.TotalTransferedData()= 
             printfn "stub"

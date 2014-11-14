@@ -7,3 +7,4 @@ type ISocketManager=
     abstract MinorReadDone: unit -> unit 
     abstract MajorReadDone: unit -> unit
     abstract SocketExceptionOccured: Socket -> Exception -> unit
+    

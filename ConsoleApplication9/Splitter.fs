@@ -18,6 +18,7 @@ open System.Threading
 open System.Collections
 open IDataPipe
 open ISocketManager
+open ICycle
 
 type private MinorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)-> unit) as this =
     let mutable neededBytes = segmentSize
@@ -118,7 +119,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
         for socket in minorSockets do
              minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
 
-        this.ReadMoreData()
+       // this.ReadMoreData()
        
     member this.TotalData 
         with get() = totalTransferedData
@@ -134,13 +135,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
 //        if paused = true then
 //            pauseCallback() 
 //        
-    member this.CycleCallbck
-        with get() = cycleCallback
-        and set(f:unit->unit)= cycleCallback <- f
-    member this.Cycle()=
-        dataNeededToCompleteCycle <- majorSocketBufferSize
-        this.ReadMoreData()
-
+    
     member this.MinorSocketFlushDone(minorSocket: obj) =
             Monitor.Enter flushDoneLockObj        
             sendingSocketCount <- (sendingSocketCount - 1)
@@ -214,3 +209,11 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     interface IDataPipe with
         member x.TotalTransferedData()= 
             totalTransferedData
+    interface ICycle with
+        member this.CycleCallback
+            with get() = cycleCallback
+            and set(f:unit->unit)= cycleCallback <- f
+        member this.Cycle()=
+            dataNeededToCompleteCycle <- majorSocketBufferSize
+            this.ReadMoreData()
+    

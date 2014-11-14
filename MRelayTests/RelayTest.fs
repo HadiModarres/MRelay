@@ -36,7 +36,7 @@ type RelayTest() =
     
     [<TestMethod>]
     member x.TestSingleTcpFakeHeader()=
-        x.TestFileTransfer(1,1024,2048,true)
+        x.TestFileTransfer(1,128,128,true)
 
     [<TestMethod>]
     member x.TestMultiTcpFakeHeader()=
@@ -180,6 +180,7 @@ type RelayTest() =
 //        t2.Join()
         
         printfn "flushing"
+        newSocket.Shutdown(SocketShutdown.Both)
         newSocket.Close()
 //        newSocket2.Close()
         fs.Flush()

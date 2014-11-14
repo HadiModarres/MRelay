@@ -53,6 +53,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ICycle.fs" />
     <Compile Include="PipeStates.fs" />
     <Compile Include="IPipeManager.fs" />
     <Compile Include="IDataPipe.fs" />
@@ -61,6 +62,7 @@
     <None Include="App.config" />
     <Compile Include="Splitter.fs" />
     <Compile Include="Merger.fs" />
+    <Compile Include="CycleManager.fs" />
     <Compile Include="SocketStore.fs" />
     <Compile Include="Pipe.fs" />
     <Compile Include="RelayMonitor.fs" />

@@ -17,7 +17,7 @@ open System.Net.Sockets
 open System.Threading
 open System.Collections
 open ISocketManager
-
+open ICycle
 
 let mutable allData = 0
 let mutable aggregateData = 0
@@ -150,7 +150,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
     let timerCallback = new TimerCallback(this.feedDriver)
     let timer = new Threading.Timer(timerCallback)
     let mutable dataOver = false
-
+    let mutable segmentCount = 0
     
     let mutable totalTransferedData = 0UL
     let mutable pauseCallback =
@@ -170,7 +170,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
 
         for sock in minorStreamQueue.ToArray() do
             sock.StartReading();
-        ignore(timer.Change(0,Timeout.Infinite))
+     //   ignore(timer.Change(0,Timeout.Infinite))
         
         
 
@@ -178,19 +178,22 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
     member this.SocketExceptionOccured(sock: Socket,exc:Exception) = 
           socketManager.SocketExceptionOccured sock exc
 
-    member this.MajorSocketFlushDone(flushedCount: uint64) =              
-        
+    member this.MajorSocketFlushDone(flushedCount: uint64) = 
+        Monitor.Enter lockobj             
+
         totalTransferedData <- (totalTransferedData + flushedCount)
         if dataNeededToCompleteCycle = 0 then
+            printfn "cycle complete"
             dataNeededToCompleteCycle <- majorSocketBufferSize
             cycleCallback()
         else
-            feeding <- false
             ignore(timer.Change(0,Timeout.Infinite))
         
+        Monitor.Exit lockobj
     member this.feedDriver(timerObj: obj) =
+        Monitor.Enter lockobj
         if feeding = false then
-            while (this.FeedMajorSocket() && (dataNeededToCompleteCycle <> 0)) do
+            while ((dataNeededToCompleteCycle <> 0) && this.FeedMajorSocket()) do
                 feeding <- true
 
             if feeding then
@@ -199,22 +202,8 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             else
                 if dataOver = false then
                     ignore(timer.Change(20,Timeout.Infinite))
+        Monitor.Exit lockobj
 
-//    member this.Pause(pauseAt: uint64,callback: unit->unit)=
-//        if paused = false && pausePending = false then
-//            if pauseAt = totalTransferedData then
-//                callback()
-//            else
-//                pauseAtCount <- pauseAt
-//                pausePending <- true
-//                pauseCallback <- callback
-//
-//    member this.Resume()=
-//        if paused = true then
-//            feeding <- false
-//            paused <- false
-//            pausePending <- false
-//            ignore(timer.Change(0,Timeout.Infinite))
 
     member this.FeedMajorSocket():bool =
         if majorSocket.HaveMoreRoom() then     
@@ -229,7 +218,10 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                     let remainder = snd(h)
 
                     if enoughDataForSegment then
+//                        segmentCount <- (segmentCount + 1)
+//                        printfn "enough for segment %i" segmentCount
                         dataNeededToCompleteCycle <- (dataNeededToCompleteCycle - segmentSize)
+                        
                         if (remainder <> null) && (remainder.GetLength(0)>0) then
                             sock.TooMuchData(remainder)
                         let s = minorStreamQueue.Dequeue()
@@ -239,32 +231,19 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                     if sock.IsDataDone() && (feeding = false) then
                         dataOver <- true
                         socketManager.MinorReadDone() 
-                 //       printfn "data done and feeding false"
                     false
         else
             false
     
-    member this.CycleCallbck
-        with get() = cycleCallback
-        and set(f:unit->unit)= cycleCallback <- f
-    member this.Cycle()=
-        feeding <- false
-        ignore(timer.Change(0,Timeout.Infinite))
         
-//    member this.UpdateMinorSockets(mins: Socket[],newCount: int)=
-//        printfn "merger: updating minor sockets, count: %i" (mins.GetLength(0))
-//        minorStreamQueue.Clear()
-//        for socket in mins do
-//             minorStreamQueue.Enqueue(new MinorSocket(socket,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured))
-//        majorSocketBufferSize <- mins.GetLength(0)*minorSocketBufferSize
-//        majorSocketBuffer <- Array.create majorSocketBufferSize (new Byte())
-//        
-////        for sock in minorStreamQueue.ToArray() do
-////            sock.StartReading();
-//        for i=(mins.GetLength(0)-1) downto (mins.GetLength(0)-newCount) do
-//            minorStreamQueue.ToArray().[i].StartReading() 
-//        //ignore(timer.Change(0,Timeout.Infinite))
-
     interface IDataPipe with
         member x.TotalTransferedData()= 
             totalTransferedData
+    interface ICycle with
+        member this.CycleCallback
+            with get() = cycleCallback
+            and set(f:unit->unit)= cycleCallback <- f
+        member this.Cycle()=
+            feeding <- false
+            ignore(timer.Change(0,20))
+        

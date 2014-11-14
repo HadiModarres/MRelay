@@ -9,5 +9,10 @@ type PipeState =
 | ThrottlingUp_ConnectingFirstConnection = 5
 | ThrottlingUp_ExchangingInfo = 6
 | ThrottlingUp_ConnectingAll = 7
+| ThrottlingUp_SendingPauseCommand = 8
+| ThrottlingUp_ReceivingPauseResponse = 9
+| ThrottlingUp_ReadingThrottleCommand = 10
+| ThrottlingUp_ReadingSyncInfo = 11
+| ThrottlingUp_SendingSyncOk = 12
 
 
