@@ -180,6 +180,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
 
     member this.MajorSocketFlushDone(flushedCount: uint64) = 
         Monitor.Enter lockobj             
+        feeding <- false
 
         totalTransferedData <- (totalTransferedData + flushedCount)
         if dataNeededToCompleteCycle = 0 then
@@ -188,7 +189,6 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             cycleCallback()
         else
             ignore(timer.Change(0,Timeout.Infinite))
-        
         Monitor.Exit lockobj
     member this.feedDriver(timerObj: obj) =
         Monitor.Enter lockobj
@@ -230,7 +230,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                 else 
                     if sock.IsDataDone() && (feeding = false) then
                         dataOver <- true
-                        socketManager.MinorReadDone() 
+                        socketManager.MinorReadDone(minorSock) 
                     false
         else
             false
@@ -244,6 +244,5 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             with get() = cycleCallback
             and set(f:unit->unit)= cycleCallback <- f
         member this.Cycle()=
-            feeding <- false
-            ignore(timer.Change(0,20))
+            ignore(timer.Change(0,Timeout.Infinite))
         
