@@ -103,6 +103,9 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     let mutable sendingSocketCount = 0 
     let flushDoneLockObj = new obj()
     let mutable readingMore = false
+   // let mutable dataOver = false
+    let mutable noMoreCyclesCallback = 
+        fun(a: ICycle) -> ()
     
     let mutable cycleCallback =
         fun() -> ()
@@ -144,11 +147,14 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             Monitor.Exit flushDoneLockObj
 
     member this.ReceiveToMajorSocketCallback(result: IAsyncResult) =
-            readingMore <- false
-            try
+                readingMore <- false
+      //      try
                 let readCount = majorSocket.EndReceive(result)
                 if readCount < 1 then
                     this.majorReadDone()
+                    noMoreCyclesCallback(this)
+                    cycleCallback()
+
                 else
                     pendingData <- (uint64) readCount
                     
@@ -158,9 +164,9 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
                     sendingSocketCount <- minorStreamQueue.Count
                     for sock in minorStreamQueue.ToArray() do
                         sock.Flush(this.MinorSocketFlushDone)
-            with 
-            | :? SocketException as e -> this.SocketExceptionOccured(majorSocket,e)
-            | :? ObjectDisposedException -> ()  
+//            with 
+//            | :? SocketException as e -> this.SocketExceptionOccured(majorSocket,e)
+//            | :? ObjectDisposedException -> ()  
 
     
    
@@ -216,4 +222,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
         member this.Cycle()=
             dataNeededToCompleteCycle <- majorSocketBufferSize
             this.ReadMoreData()
+        member this.NoMoreCyclesCallback
+            with set(f: ICycle -> unit) =  noMoreCyclesCallback <- f
+       
     

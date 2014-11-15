@@ -31,11 +31,11 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     do
         socketStore.AddMinorSet(minorCount)
 
-//    do 
-//        ignore(timer.Change(4000,Timeout.Infinite))
+    do 
+        ignore(timer.Change(4000,Timeout.Infinite))
 //    
     member this.ThrottleTest(timerObj: obj)=
-        ignore(this.ThrottleUpSend(30))
+        ignore(this.ThrottleUpSend(80))
     member this.GUID 
         with get() = guid
         and set(gui: byte[]) = guid <- gui
@@ -153,7 +153,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             state <- PipeState.ThrottlingUp_ConnectingAll
             let buf = Array.create 1 (new Byte())
             buf.[0] <- (byte)0
-            let socket = socketStore.GetLastMinorSet().[socketStore.ConnectedSockets]
+            let socket = socketStore.GetLastMinorSet().[0]
             ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null)) ;  // check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
             ()
         
@@ -191,7 +191,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                 printfn "couldn't read data"
             else
                 state <- PipeState.ThrottlingUp_ConnectingAll
-                for i = 0 to throttleUpSize-1 do
+                for i = 0 to throttleUpSize-2 do
                     pipeManager.needAConnection(this) 
             ()
         | PipeState.ThrottlingUp_ReadingSyncInfo when isMajorSocketOnRelayListenSide = false -> 

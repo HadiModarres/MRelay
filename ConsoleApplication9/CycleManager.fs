@@ -6,11 +6,12 @@ open Splitter
 open Merger
 open ICycle
 open System.Threading
+open System.Collections.Generic
 
 type CycleManager() as x=
-    let chain = new ArrayList()
+    let chain = new Generic.List<ICycle>()
     let mutable cycleNumber = 0
-
+    let mutable updateNeeded = false
     let mutable chainCallback =
         fun() -> ()
     let mutable pauseAtCallback =
@@ -31,23 +32,36 @@ type CycleManager() as x=
     member private x.UpdateChain()=
         if chain.Count > 1 then
             for i=0 to (chain.Count-2) do
-                let c1 = chain.[i] :?> ICycle
-                let c2 = chain.[i+1] :?> ICycle
+                let c1 = chain.[i]
+                let c2 = chain.[i+1]
                 c1.CycleCallback <- c2.Cycle
-        let c3 = chain.[chain.Count-1] :?> ICycle
-        c3.CycleCallback <- x.CheckCycle
+        if chain.Count > 0 then
+            let c3 = chain.[chain.Count-1]
+            c3.CycleCallback <- x.CheckCycle
+        else
+            chainCallback <- fun()->()
+        updateNeeded <- false
         
     member x.AddToChain(cycler: ICycle)=
         ignore(chain.Add(cycler))
+        cycler.NoMoreCyclesCallback <- x.NoMoreCyclesLeft
  
+    member x.NoMoreCyclesLeft(cycler: ICycle)=
+        ignore(chain.Remove(cycler))
+        updateNeeded <- true
+
+    
     member private x.CheckCycle()=
         Monitor.Enter lockobj
         cycleNumber <- (cycleNumber + 1)
+
         printfn "cycle number: %i" cycleNumber
         if pausePending && cycleNumber=pauseAtCycle then
             chainCallback <- pauseAtCallback
-            pausePending<- false
-            pauseAtCycle<- -1
+            pausePending <- false
+            pauseAtCycle <- -1
+        if updateNeeded = true then
+            x.UpdateChain()
         chainCallback()
         Monitor.Exit lockobj
 
@@ -69,7 +83,7 @@ type CycleManager() as x=
         Monitor.Exit lockobj
     member x.Resume()=
         if chain.Count > 0 then
-            let c = chain.[0] :?> ICycle
+            let c = chain.[0] 
             chainCallback <- c.Cycle
             x.UpdateChain()
             c.Cycle()

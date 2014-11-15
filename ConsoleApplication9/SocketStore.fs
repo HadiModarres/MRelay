@@ -37,7 +37,7 @@ type SocketStore()=
     let lockobj = new obj()
     let lockobj2 = new obj()
 //    let mutable minorSockets = Array.create minorCount (null)
-
+    let mutable test = 0
     let pred(t: Boolean)=
         if t = true then
             false
@@ -83,14 +83,19 @@ type SocketStore()=
                 for mset in minorSocketSets.ToArray() do
                     for sock in mset do
                         sock.Shutdown(SocketShutdown.Send)
+                        test <- (test+1)
+                        printfn "df"
+
             with 
             | :? SocketException -> x.Close()
             | :? ObjectDisposedException -> ()
             majorReadStatus <- false
-            for i=0 to minorSetReadStatus.Count-1 do
-                let b = minorSetReadStatus.[i] 
-                if b = false then
-                    x.Close(minorSocketSets.[i])
+            if minorSetReadStatus.Count >0 then
+                for i=minorSetReadStatus.Count-1 downto 0 do
+                    let b = minorSetReadStatus.[i] 
+                    if b = false then
+                        x.Close(minorSocketSets.[i])
+                      
         Monitor.Exit lockobj
     member private x.SyncMinorReadDone(set: Socket[])=
         Monitor.Enter lockobj

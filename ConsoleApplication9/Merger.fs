@@ -116,7 +116,7 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
             | :? ObjectDisposedException -> ()
         
     member private this.SendToMajorSocketCallback(result: IAsyncResult)=
-            try
+//            try
                 let sentBytes = socket.EndSend(result)
                 let (f:uint64 -> unit)=(result.AsyncState) :?> (uint64 -> unit)
                 if sentBytes > 0 then
@@ -129,9 +129,9 @@ type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketExc
                         this.SendMore(f) // send the rest
                 else  // failed to send any data
                     ()
-            with 
-            | :? SocketException as e -> socketException(socket,e)
-            | :? ObjectDisposedException -> ()  
+//            with 
+//            | :? SocketException as e -> socketException(socket,e)
+//            | :? ObjectDisposedException -> ()  
 
 
     member private this.Reset()=
@@ -151,7 +151,8 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
     let timer = new Threading.Timer(timerCallback)
     let mutable dataOver = false
     let mutable segmentCount = 0
-    
+    let mutable noMoreCyclesCallback = 
+        fun(a: ICycle) -> ()
     let mutable totalTransferedData = 0UL
     let mutable pauseCallback =
         fun () -> ()
@@ -179,7 +180,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
           socketManager.SocketExceptionOccured sock exc
 
     member this.MajorSocketFlushDone(flushedCount: uint64) = 
-        Monitor.Enter lockobj             
+       // Monitor.Enter lockobj             
         feeding <- false
 
         totalTransferedData <- (totalTransferedData + flushedCount)
@@ -189,7 +190,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             cycleCallback()
         else
             ignore(timer.Change(0,Timeout.Infinite))
-        Monitor.Exit lockobj
+       // Monitor.Exit lockobj
     member this.feedDriver(timerObj: obj) =
         Monitor.Enter lockobj
         if feeding = false then
@@ -202,6 +203,9 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             else
                 if dataOver = false then
                     ignore(timer.Change(20,Timeout.Infinite))
+                else    
+                    noMoreCyclesCallback(this)
+                    cycleCallback()
         Monitor.Exit lockobj
 
 
@@ -245,4 +249,6 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             and set(f:unit->unit)= cycleCallback <- f
         member this.Cycle()=
             ignore(timer.Change(0,Timeout.Infinite))
-        
+        member this.NoMoreCyclesCallback
+            with set(f: ICycle -> unit) =  noMoreCyclesCallback <- f
+       
