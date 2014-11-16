@@ -25,7 +25,7 @@ type RelayTest() =
 //        x.TestFileTransfer(1,1024,2048)
 //        x.TestFileTransfer(1,4000,8000)
 //        x.TestFileTransfer(1,64*1024,64*1024)
-        x.TestFileTransfer(5,100,100,false)
+        x.TestFileTransfer(5,10000,10000,false)
         x.TestFileTransfer(60,1024,1024,false)
 
     [<TestMethod>]
