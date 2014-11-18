@@ -63,6 +63,7 @@
     <None Include="MSTest.runsettings" />
     <Compile Include="RelayTest.fs" />
     <Compile Include="EncryptedRelayTest.fs" />
+    <Compile Include="TestTypes.fs" />
     <Compile Include="MonitorTest.fs" />
   </ItemGroup>
   <ItemGroup>

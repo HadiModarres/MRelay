@@ -20,6 +20,7 @@ open RelayMonitor
 open IDataPipe
 open Pipe
 open IPipeManager
+open IMonitorDelegate
 
 let guidSize = 16 // size of guid in bytes
 
@@ -35,6 +36,9 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         listeningSocket.Listen(10000)
 
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
+
+    member this.removePipe(pipe: Pipe)=
+        ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
 
     member this.StartListening()=
         if  isMajorOnListen = true then
@@ -161,13 +165,16 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
+    let throttleSize = 8
+    let monitor = new Monitor(this,1000)
+
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
 //    let monitor = new Monitor(this.MonitorFired)
  //   let mutable connect = 0
         
     do  
-        
+        monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
         else
@@ -184,5 +191,14 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         member x.getMinorSocketBufferSize()  =
             minorConnectionBufferSize
         
+        member x.dataTransferIsAboutToBegin(pipe: IDataPipe)=
+            monitor.Add(pipe)
+        
+        member x.pipeDone(pipe: obj)=
+            monitor.Remove(pipe :?> IDataPipe)
+            server.removePipe(pipe :?> Pipe)
 
-  
+    interface IMonitorDelegate with
+        member x.objectHasReachedActivityCriteria(pipe: obj)=
+            let d = pipe :?> Pipe
+            d.ThrottleUp(throttleSize)

@@ -21,6 +21,7 @@ type MonitorObject(p:IDataPipe)=
     let mutable totalTransferOnLastCycle = 0UL
     let mutable longestActiveTransfer = 0 
     let mutable currentSpeed = (float)0
+    let lockobj = new obj()
 
     member x.TotalDataOnLast 
         with get() = totalTransferOnLastCycle
@@ -34,14 +35,17 @@ type MonitorObject(p:IDataPipe)=
         with get() = currentSpeed
         
     member x.Update(highestSpeed: float,intervalMillis: int)=
-        currentSpeed <- (float) (p.TotalTransferedData() - totalTransferOnLastCycle) / (float)intervalMillis
+        Monitor.Enter lockobj
+        let k = p.TotalTransferedData()
+        currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
         
-        if (currentSpeed > (0.6 * (float)highestSpeed)) = true then
+        if (currentSpeed > (0.6 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
         else 
             longestActiveTransfer <- 0
 
-        totalTransferOnLastCycle <- p.TotalTransferedData()
+        totalTransferOnLastCycle <- k
+        Monitor.Exit lockobj
     member x.Reset()=
         totalTransferOnLastCycle <- 0UL
         longestActiveTransfer <- 0
@@ -61,7 +65,7 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     let lockobj = new obj()
     
     do  
-        criteria.Add(new Criterion(CriterionType.ConstantActivity,8000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
+        criteria.Add(new Criterion(CriterionType.ConstantActivity,6000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
         criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,3*1024*1024)) // for a member to match this criteria it must have moved at least 3MB of data
                                                                                     // if the two criteria above hold, we can almost be sure that the pipe is a heavy load pipe and should be throttled up, 
                                                                                     // average web page size according to statistics is apparently 1700 KB 
@@ -77,7 +81,7 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 monitoredObjects.RemoveAt(i)
         Monitor.Exit lockobj
     member x.Start() = // monitor will stop by default after firing delegate method
-        timer.Change(0,period)
+        ignore(timer.Change(0,period))
     member x.Reset() =
         
         ignore(timer.Change(Timeout.Infinite,Timeout.Infinite))
@@ -103,15 +107,18 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 highestSpeedSoFar <- o.CurrentSpeed
 
     member private x.Process(timerObj: obj)=
+        Monitor.Enter lockobj
         x.Update()
-        for o in monitoredObjects do
-            let f1 = x.MatchesCriterion o
+        for i= monitoredObjects.Count-1 downto 0 do
+            let f1 = x.MatchesCriterion monitoredObjects.[i]
             let pr = new Predicate<Criterion>(f1)
             if Array.TrueForAll(criteria.ToArray(),pr) then
-                deleg.objectHasReachedActivityCriteria(o)
+                printfn "firing"
+                deleg.objectHasReachedActivityCriteria(monitoredObjects.[i])
+                monitoredObjects.RemoveAt(i)
 
         processCount <- (processCount + 1)
-                
+        Monitor.Exit lockobj
     
     member private x.MatchesCriterion  (toBeTested: MonitorObject) (crit:Criterion)=
         match crit.CriterionType with
@@ -126,7 +133,6 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 true
             else 
                 false
-
         
 
 

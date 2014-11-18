@@ -56,8 +56,8 @@
     <Compile Include="IMonitorDelegate.fs" />
     <Compile Include="ICycle.fs" />
     <Compile Include="PipeStates.fs" />
-    <Compile Include="IPipeManager.fs" />
     <Compile Include="IDataPipe.fs" />
+    <Compile Include="IPipeManager.fs" />
     <Compile Include="ISocketManager.fs" />
     <Compile Include="EncryptedPipe.fs" />
     <None Include="App.config" />
