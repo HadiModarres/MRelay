@@ -65,8 +65,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     let lockobj = new obj()
     
     do  
+
         criteria.Add(new Criterion(CriterionType.ConstantActivity,6000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
         criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,3*1024*1024)) // for a member to match this criteria it must have moved at least 3MB of data
+        
                                                                                     // if the two criteria above hold, we can almost be sure that the pipe is a heavy load pipe and should be throttled up, 
                                                                                     // average web page size according to statistics is apparently 1700 KB 
 
@@ -114,7 +116,7 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
             let pr = new Predicate<Criterion>(f1)
             if Array.TrueForAll(criteria.ToArray(),pr) then
                 printfn "firing"
-                deleg.objectHasReachedActivityCriteria(monitoredObjects.[i])
+                deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
                 monitoredObjects.RemoveAt(i)
 
         processCount <- (processCount + 1)

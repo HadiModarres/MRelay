@@ -12,6 +12,7 @@ open Merger
 open System.Collections
 open ICycle
 open CycleManager
+open IDataPipe
 
 type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSide: bool)as this=  // saves state info for each tcp pipe and implements MRelay protocol
     let mutable state = PipeState.AcceptingConnections
@@ -32,8 +33,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     do
         socketStore.AddMinorSet(minorCount)
 
-    do 
-        ignore(timer.Change(6000,Timeout.Infinite))
+//    do 
+//        ignore(timer.Change(6000,Timeout.Infinite))
 //    
     member this.ThrottleTest(timerObj: obj)=
         ignore(this.ThrottleUp(20))
@@ -255,6 +256,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
 
     member private this.InitRelay()=
         Monitor.Enter lockobj
+        pipeManager.dataTransferIsAboutToBegin(this)
         state <- PipeState.Relaying
         let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
         let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
@@ -267,3 +269,14 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         Monitor.Exit lockobj
     member this.Close()= 
         printfn "stub"
+
+    interface IDataPipe with
+        member x.TotalTransferedData()=
+            let mutable tot = 0UL
+            for o in splitterChain.GetAll do
+                let k = o :?> IDataPipe
+                tot <- (tot+k.TotalTransferedData())
+            for o in mergerChain.GetAll do
+                let k = o :?> IDataPipe
+                tot <- (tot+k.TotalTransferedData())
+            tot
