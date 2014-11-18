@@ -52,6 +52,7 @@ type CycleManager() as x=
     member x.AddToChain(cycler: ICycle)=
         ignore(chain.Add(cycler))
         cycler.NoMoreCyclesCallback <- x.NoMoreCyclesLeft
+        printfn "adding to chain at %i" cycleNumber
  
     member x.NoMoreCyclesLeft(cycler: ICycle)=
         ignore(chain.Remove(cycler))
@@ -64,7 +65,7 @@ type CycleManager() as x=
         paused <- true
         cycleNumber <- (cycleNumber + 1)
 
-        printfn "cycle number: %i" cycleNumber
+//        printfn "cycle number: %i" cycleNumber
 //        if pausePending && cycleNumber=pauseAtCycle then
 //            chainCallback <- pauseAtCallback
 //            pausePending <- false

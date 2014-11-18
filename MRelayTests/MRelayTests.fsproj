@@ -63,6 +63,7 @@
     <None Include="MSTest.runsettings" />
     <Compile Include="RelayTest.fs" />
     <Compile Include="EncryptedRelayTest.fs" />
+    <Compile Include="MonitorTest.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConsoleApplication9\MRelay.fsproj">

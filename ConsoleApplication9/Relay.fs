@@ -39,6 +39,7 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
     member this.StartListening()=
         if  isMajorOnListen = true then
             this.SingleListen()
+            
         else
             this.MultiListen() 
         

@@ -33,10 +33,10 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         socketStore.AddMinorSet(minorCount)
 
     do 
-        ignore(timer.Change(2000,Timeout.Infinite))
+        ignore(timer.Change(6000,Timeout.Infinite))
 //    
     member this.ThrottleTest(timerObj: obj)=
-        ignore(this.ThrottleUp(80))
+        ignore(this.ThrottleUp(20))
     member this.GUID 
         with get() = guid
         and set(gui: byte[]) = guid <- gui

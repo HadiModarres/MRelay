@@ -53,6 +53,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IMonitorDelegate.fs" />
     <Compile Include="ICycle.fs" />
     <Compile Include="PipeStates.fs" />
     <Compile Include="IPipeManager.fs" />

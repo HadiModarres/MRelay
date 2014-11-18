@@ -185,7 +185,6 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
 
         totalTransferedData <- (totalTransferedData + flushedCount)
         if dataNeededToCompleteCycle = 0 then
-            printfn "cycle complete"
             dataNeededToCompleteCycle <- majorSocketBufferSize
             cycleCallback()
         else
