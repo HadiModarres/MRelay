@@ -50,7 +50,7 @@ type MonitorObject(p:IDataPipe)=
         totalTransferOnLastCycle <- 0UL
         longestActiveTransfer <- 0
 
-
+[<AllowNullLiteral>]
 type Monitor(deleg: IMonitorDelegate,period: int) as x =
     let criteria = new Generic.List<Criterion>() // in order for monitor to fire the delegate method, it needs a member that is being monitored to reach all criteria contained in this list
     let monitoredObjects =new Generic.List<MonitorObject>()

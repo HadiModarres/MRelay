@@ -25,19 +25,18 @@ open System.Collections.Generic
 
 
 
-type SocketStore()=
+type SocketStore(socketStoreClosedCallback: unit -> unit)=
     let mutable connectedSockets = 0
     let mutable majorSocket: Socket = null
     let mutable majorReadStatus = true
-//    let mutable minorMajorDirectionDone = false
     
     let minorSocketSets = new Generic.List<Socket[]>()
     let minorSetReadStatus = new Generic.List<Boolean>()
-//    let mutable merger = null
     let lockobj = new obj()
     let lockobj2 = new obj()
-//    let mutable minorSockets = Array.create minorCount (null)
     let mutable test = 0
+
+
     let pred(t: Boolean)=
         if t = true then
             false
@@ -138,17 +137,14 @@ type SocketStore()=
         minorSocketSets.Clear()
         if majorSocket <> null then
             majorSocket.Close()
+        socketStoreClosedCallback()
         
-    interface IDataPipe with
-        member x.TotalTransferedData()= 
-            printfn "stub"
-            0UL  
+    
     interface ISocketManager with
         member x.MajorReadDone() =
             x.SyncMajorReadDone() 
         member x.MinorReadDone(set: Socket[]) =
             x.SyncMinorReadDone(set)
         member x.SocketExceptionOccured sock exc  =
-            raise(exc)
-            x.Close()
+            x.Close() // should the whole pipe be closed with every socket exception?           
     

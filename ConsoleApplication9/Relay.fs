@@ -34,7 +34,6 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         listeningSocket.Bind(receiveEndpoint)
         listeningSocket.Listen(10000)
-
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
 
     member this.removePipe(pipe: Pipe)=
@@ -53,6 +52,7 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
         newPipe.GUID <- newGuid
         let sc = e :?> SocketAsyncEventArgs
+        
         let newSocket = sc.AcceptSocket
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
@@ -61,11 +61,15 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
     
     member this.SingleListen()=
         let sc = new SocketAsyncEventArgs()
-        let bo = listeningSocket.AcceptAsync(sc)
-        if bo = true then
-            sc.Completed.Add(this.SingleAccept)
-        else
-            this.SingleAccept(sc)               
+        try
+            let bo = listeningSocket.AcceptAsync(sc)
+            if bo = true then
+                sc.Completed.Add(this.SingleAccept)
+            
+            else
+                this.SingleAccept(sc)               
+        with
+        | _ as e-> printfn "%A" e.Message 
              
     member this.MultiAccept(e: obj)=
         let sc = e :?> SocketAsyncEventArgs
@@ -73,7 +77,11 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         let guid = Array.create guidSize (new Byte())
-        ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
+        try
+            ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
+        with
+        | :? SocketException -> newSocket.Close()
+        | :? ObjectDisposedException -> ()
         this.MultiListen()
         
     member this.MultiListen()=
@@ -86,7 +94,7 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
             else
                 this.MultiAccept(sc)               
         with
-        | e -> listeningSocket.Dispose();listeningSocket.Close();
+        | e -> printfn "%A" e.Message
 
 
     member this.GUIDReadCallback(result: IAsyncResult)=
@@ -95,22 +103,24 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         let guid =  fst(h)
         let socket = snd(h)
 
-        
-        let read = socket.EndReceive(result)
-        if read <> guidSize then
-            printfn "Couldn't read guid, handle"
-        else
-            if socketStoreMap.ContainsKey(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize)) then
-                ()
-                
+        try
+            let read = socket.EndReceive(result)
+            if read <> guidSize then
+                printfn "Couldn't read guid, handle"
             else
-                let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
-                socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize),newPipe)
-                newPipe.GUID <- guid
-            let s = socketStoreMap.[System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize)]
+                if socketStoreMap.ContainsKey(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize)) then
+                    ()
+                
+                else
+                    let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
+                    socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize),newPipe)
+                    newPipe.GUID <- guid
+                let s = socketStoreMap.[System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize)]
             
-            s.NewSocketReceived(socket)
-            
+                s.NewSocketReceived(socket)
+        with 
+        | :? SocketException -> socket.Close()
+        | :? ObjectDisposedException -> ()    
         Monitor.Exit lockobj
 
 
@@ -128,8 +138,11 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
         let s= new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-        ignore(s.BeginConnect(forwardRelayAddress,forwardRelayPort,callback,(s,pipe)))
-
+        try
+            ignore(s.BeginConnect(forwardRelayAddress,forwardRelayPort,callback,(s,pipe)))
+        with
+        | :? SocketException -> pipe.Close()
+        | :? ObjectDisposedException -> ()
     member this.ConnectCallback(result: IAsyncResult)=
         let h = result.AsyncState :?> (Socket*Pipe)
         let socket = fst(h)
@@ -150,14 +163,15 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
         let socket = fst(h)
         let pipe = snd(h)
        
-        
-        let sentCount = socket.EndSend(result)
-        if sentCount <> guidSize then
-            printfn "couldn't send guid"
-        else
-            pipe.SocketConnected(socket)
-               
-       
+        try
+            let sentCount = socket.EndSend(result)
+            if sentCount <> guidSize then
+                printfn "couldn't send guid"
+            else
+                pipe.SocketConnected(socket)
+        with       
+        | :? SocketException -> pipe.Close()
+        | :? ObjectDisposedException -> ()
 
 
 type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int, isMajorOnListen: bool ) as this =
@@ -166,7 +180,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         else y
 
     let throttleSize = 8
-    let monitor = new Monitor(this,1000)
+    let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
@@ -174,7 +188,9 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
  //   let mutable connect = 0
         
     do  
-        monitor.Start()
+        if isMajorOnListen = true then
+            monitor <- new Monitor(this,1000)
+            monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
         else
@@ -192,10 +208,12 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             minorConnectionBufferSize
         
         member x.dataTransferIsAboutToBegin(pipe: IDataPipe)=
-            monitor.Add(pipe)
+            if isMajorOnListen = true && monitor<>null then
+                monitor.Add(pipe)
         
         member x.pipeDone(pipe: obj)=
-            monitor.Remove(pipe :?> IDataPipe)
+            if monitor <> null then
+                monitor.Remove(pipe :?> IDataPipe)
             server.removePipe(pipe :?> Pipe)
 
     interface IMonitorDelegate with

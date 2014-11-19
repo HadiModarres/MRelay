@@ -20,7 +20,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let majorSendCallback = new AsyncCallback(this.DataSendToMajorSocket)
     let minorReadCallback = new AsyncCallback(this.DataReceiveToMinorSocket)
     let minorSendCallback = new AsyncCallback(this.DataSendToMinorSocket)
-    let socketStore = new SocketStore()
+    let socketStore = new SocketStore(this.SocketStoreClosed)
     let mutable guid: byte[] = null
     let mutable throttleUpSize = 0
     let mergerChain = new CycleManager()
@@ -36,6 +36,13 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
 //    do 
 //        ignore(timer.Change(6000,Timeout.Infinite))
 //    
+
+    member this.SocketStoreClosed()=
+        Monitor.Enter lockobj
+        state <- PipeState.Closing
+        pipeManager.pipeDone(this)
+        Monitor.Exit lockobj
+    
     member this.ThrottleTest(timerObj: obj)=
         ignore(this.ThrottleUp(20))
     member this.GUID 
@@ -57,11 +64,17 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         | PipeState.Relaying when isMajorSocketOnRelayListenSide=false ->
             state <- PipeState.ThrottlingUp_ReadingSyncInfo
             let buf = Array.create 6 (new Byte())
-            ignore(socket.BeginReceive(buf,0,buf.GetLength(0),SocketFlags.None,minorReadCallback,(socket,buf)))
+            try
+                ignore(socket.BeginReceive(buf,0,buf.GetLength(0),SocketFlags.None,minorReadCallback,(socket,buf)))
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             () 
         | PipeState.ThrottlingUp_ConnectingAll when isMajorSocketOnRelayListenSide = false ->
             ignore(this.ReadSocketIndex(socket))
             ()
+        | PipeState.Closing ->
+            socket.Close()
         | _ -> ()
         Monitor.Exit lockobj
 
@@ -76,9 +89,13 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             let index = socketStore.AddMinorSocket(socket);
             let buf = Array.create 1 (new Byte());
             buf.[0] <- (byte) index;
-            ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;// check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
-            if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then
-                this.InitRelay()
+            try
+                ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;// check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
+                if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then
+                    this.InitRelay()
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
         | PipeState.ThrottlingUp_ConnectingFirstConnection when isMajorSocketOnRelayListenSide = true ->
             state <- PipeState.ThrottlingUp_SendingSyncInfo
@@ -92,19 +109,24 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             buf.[0] <- (byte) index
             buf.[1] <- (byte) size
             Array.blit (BitConverter.GetBytes(currentSplitterCycleNumber+throttleCycleDelay)) 0 buf 2 4
-            ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
-
-
-            state <- PipeState.ThrottlingUp_ReadingSyncInfo
-
-            let buf2 = Array.create 4 (new Byte())
-            ignore(socket.BeginReceive(buf2,0,buf2.GetLength(0),SocketFlags.None,minorReadCallback,(socket,buf2)))
+            try
+                ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
+                state <- PipeState.ThrottlingUp_ReadingSyncInfo
+                let buf2 = Array.create 4 (new Byte())
+                ignore(socket.BeginReceive(buf2,0,buf2.GetLength(0),SocketFlags.None,minorReadCallback,(socket,buf2)))
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
         | PipeState.ThrottlingUp_ConnectingAll when isMajorSocketOnRelayListenSide = true ->
             let index = socketStore.AddMinorSocket(socket);
             let buf = Array.create 1 (new Byte());
             buf.[0] <- (byte) index;
-            ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;  // check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
+            try
+                ignore(socket.BeginSend(buf,0,1,SocketFlags.None,null,null)) ;  // check, do beginSend(data1,socket1);beginSend(data2,socket1) make data1 be sent first and then data2 for sure?
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then
                 state <- PipeState.Relaying
                 let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
@@ -115,6 +137,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                 mergerChain.Resume()
 
             ()  
+        | PipeState.Closing ->
+            socket.Close()
         | _ -> ()
         Monitor.Exit lockobj
     member public this.ThrottleUp(byHowManyConnections: int)=
@@ -154,9 +178,12 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             let buf = Array.create 4 (new Byte())
             Array.blit (BitConverter.GetBytes(currentSplitterCycle+throttleCycleDelay)) 0 buf 0 4
             let socket = socketStore.GetLastMinorSet().[0]
-            ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
-            state <- PipeState.ThrottlingUp_ConnectingAll
-
+            try
+                ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
+                state <- PipeState.ThrottlingUp_ConnectingAll
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             
         
         | _ -> ()
@@ -175,52 +202,63 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             let h = result.AsyncState :?> (Socket*byte[])
             let socket =  fst(h)
             let socketIndex = snd(h)
-            let received = socket.EndReceive(result)
-            if received <> 1 then
-                raise(new Exception("couldn't read index"))
-            else
-                socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
-                if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
-                    state <- PipeState.Connecting
-                    pipeManager.needAConnection(this)
+            try
+                let received = socket.EndReceive(result)
+                if received <> 1 then
+                    raise(new Exception("couldn't read index"))
+                else
+                    socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
+                    if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
+                        state <- PipeState.Connecting
+                        pipeManager.needAConnection(this)
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
         
         | PipeState.ThrottlingUp_ReadingSyncInfo when isMajorSocketOnRelayListenSide = false -> 
             let h = result.AsyncState :?> (Socket*byte[])
             let socket = fst(h)
             let pa = snd(h)
-            let readCount = socket.EndReceive(result)
-            if readCount <> pa.GetLength(0) then
-                printfn "couldn't read data"
-            else
-                throttleUpSize <- (int) pa.[1]
-                socketStore.AddMinorSet(throttleUpSize)
-                socketStore.AddMinorSocket(socket,(int)pa.[0])
-                let targetMergerCycleNumber = BitConverter.ToInt32(pa,2)
+            try
+                let readCount = socket.EndReceive(result)
+                if readCount <> pa.GetLength(0) then
+                    printfn "couldn't read data"
+                else
+                    throttleUpSize <- (int) pa.[1]
+                    socketStore.AddMinorSet(throttleUpSize)
+                    socketStore.AddMinorSocket(socket,(int)pa.[0])
+                    let targetMergerCycleNumber = BitConverter.ToInt32(pa,2)
                 
-                mergerChain.AddToFutureMembers(targetMergerCycleNumber)
-                let currentSplitterCycle = splitterChain.Pause(fun ()->())
-                splitterChain.AddToFutureMembers(currentSplitterCycle+throttleCycleDelay)
-                let buf = Array.create 4 (new Byte())
-                Array.blit (BitConverter.GetBytes(currentSplitterCycle+throttleCycleDelay)) 0 buf 0 4
-                let socket = socketStore.GetLastMinorSet().[0]
-                ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
-                state <- PipeState.ThrottlingUp_ConnectingAll
-
+                    mergerChain.AddToFutureMembers(targetMergerCycleNumber)
+                    let currentSplitterCycle = splitterChain.Pause(fun ()->())
+                    splitterChain.AddToFutureMembers(currentSplitterCycle+throttleCycleDelay)
+                    let buf = Array.create 4 (new Byte())
+                    Array.blit (BitConverter.GetBytes(currentSplitterCycle+throttleCycleDelay)) 0 buf 0 4
+                    let socket = socketStore.GetLastMinorSet().[0]
+                    ignore(socket.BeginSend(buf,0,buf.GetLength(0),SocketFlags.None,null,null))
+                    state <- PipeState.ThrottlingUp_ConnectingAll
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
         | PipeState.ThrottlingUp_ReadingSyncInfo when isMajorSocketOnRelayListenSide = true ->
             let h = result.AsyncState :?> (Socket*byte[])
             let socket = fst(h)
             let pa = snd(h)
-            let readCount = socket.EndReceive(result)
-            if readCount <> pa.GetLength(0) then
-                printfn "couldn't read sync info"
-            else
-                let targetMergerCycleNumber = BitConverter.ToInt32(pa,0)
-                mergerChain.AddToFutureMembers(targetMergerCycleNumber)
-                state <- PipeState.ThrottlingUp_ConnectingAll
-                for i = 0 to (throttleUpSize-2) do
-                    pipeManager.needAConnection(this)
+            try
+                let readCount = socket.EndReceive(result)
+                if readCount <> pa.GetLength(0) then
+                    printfn "couldn't read sync info"
+                else
+                    let targetMergerCycleNumber = BitConverter.ToInt32(pa,0)
+                    mergerChain.AddToFutureMembers(targetMergerCycleNumber)
+                    state <- PipeState.ThrottlingUp_ConnectingAll
+                    for i = 0 to (throttleUpSize-2) do
+                        pipeManager.needAConnection(this)
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
                
         
@@ -228,19 +266,23 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             let h = result.AsyncState :?> (Socket*byte[])
             let socket =  fst(h)
             let socketIndex = snd(h)
-            let received = socket.EndReceive(result)
-            if received <> 1 then
-                raise(new Exception("couldn't read index"))
-            else
-                socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
-                if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
-                    state <- PipeState.Relaying
-                    let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
-                    let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
-                    splitterChain.AddToFutureMembers(s)
-                    mergerChain.AddToFutureMembers(m) 
-                    splitterChain.Resume()
-                    mergerChain.Resume()
+            try
+                let received = socket.EndReceive(result)
+                if received <> 1 then
+                    raise(new Exception("couldn't read index"))
+                else
+                    socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
+                    if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
+                        state <- PipeState.Relaying
+                        let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+                        let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+                        splitterChain.AddToFutureMembers(s)
+                        mergerChain.AddToFutureMembers(m) 
+                        splitterChain.Resume()
+                        mergerChain.Resume()
+            with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
             ()
         | _ -> ()
         Monitor.Exit lockobj
@@ -251,7 +293,11 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     member private this.ReadSocketIndex(socket:Socket)=
         Monitor.Enter lockobj
         let index = Array.create 1 (new Byte())
-        ignore(socket.BeginReceive(index,0,index.GetLength(0),SocketFlags.None,minorReadCallback,(socket,index)))
+        try
+            ignore(socket.BeginReceive(index,0,index.GetLength(0),SocketFlags.None,minorReadCallback,(socket,index)))
+        with 
+            | :? SocketException -> socketStore.Close()
+            | :? ObjectDisposedException -> socketStore.Close()
         Monitor.Exit lockobj
 
     member private this.InitRelay()=
@@ -268,8 +314,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         mergerChain.Resume()
         Monitor.Exit lockobj
     member this.Close()= 
-        printfn "stub"
-
+        socketStore.Close()
     interface IDataPipe with
         member x.TotalTransferedData()=
             let mutable tot = 0UL

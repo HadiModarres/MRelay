@@ -12,4 +12,4 @@ type PipeState =
 | ThrottlingUp_SendingSyncInfo = 11
 | ThrottlingUp_SendingSyncOk = 12
 | ThrottlingUp_ReceivingSyncOk = 13
-
+| Closing = 14

@@ -195,22 +195,6 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     member this.majorReadDone()=
         socketManager.MajorReadDone()
 
-//    member this.Pause(callback: unit->unit)=
-//        Monitor.Enter flushDoneLockObj
-//        if paused = false then
-//            paused <- true
-//            pauseCallback <- callback
-//            if readingMore = true then
-//                pauseCallback() 
-//            
-//        Monitor.Exit flushDoneLockObj
-//    member this.Resume() =
-//        Monitor.Enter flushDoneLockObj
-//        if paused = true then
-//            paused <- false
-//            this.ReadMoreData()
-//        Monitor.Exit flushDoneLockObj
-//    
     
     interface IDataPipe with
         member x.TotalTransferedData()= 
