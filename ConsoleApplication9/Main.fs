@@ -29,11 +29,10 @@ let mutable forwardPort = 4000
 let mutable forwardTcpCount = 1
 let mutable segmentSize = 20000
 let mutable minorSocketBufferSize = 40000
-let mutable readFakeRequest = false
-let mutable sendFakeRequest = false
 let mutable encryptReceive = false
 let mutable decryptReceive = false
 let mutable help = false
+let mutable isMajorOnListenSide = -1
 let p = new OptionSet()
 
 let getAvilablePort() =
@@ -71,13 +70,13 @@ let processMinorSocketBufferSize(size: int)=
     printfn "minor socket buffer size: %i" size
     minorSocketBufferSize <- size
 
-let processReadFakeRequest(read: bool)=
-    printfn "read fake request:  %b" read
-    readFakeRequest <- read
-
-let processSendFakeRequest(send: bool)=
-    printfn "send fake request %b" send
-    sendFakeRequest <- send
+//let processReadFakeRequest(read: bool)=
+//    printfn "read fake request:  %b" read
+//    readFakeRequest <- read
+//
+//let processSendFakeRequest(send: bool)=
+//    printfn "send fake request %b" send
+//    sendFakeRequest <- send
 
 let processEncryptReceive(encrypt: bool)=
     printfn "encrypt receive data %b" encrypt
@@ -86,6 +85,12 @@ let processEncryptReceive(encrypt: bool)=
 let processDecryptReceive(decrypt: bool)=
     printfn "decrypt receive: %b" decrypt
     decryptReceive <- decrypt
+
+let processIsMajorOnListenSide(majorListen: bool)=
+    if majorListen = true then
+        isMajorOnListenSide <- 0
+    else 
+        isMajorOnListenSide <- 1
 
 let processHelp(stf: string)=
     help <- true
@@ -110,13 +115,16 @@ let processArgs(args: string[])=
     ignore(p.Add("forwardTcpCount|ftc=", "The {Count} of outgoing tcp connections (Default: 1)",processForwardTcpCount))
     ignore(p.Add("segmentSize|ss=", "The size in bytes of each segment when dividing stream to segments (Default: 10000)",processSegmentSize))
     ignore(p.Add("socketBufferSize|sbs=", "The size in bytes of buffer for each minor tcp socket (Default: 20000)",processMinorSocketBufferSize))
-    ignore(p.Add("readFakeRequest|rfr=", "Specify whether relay should read a fake http request when it accepts new tcp connections (Default: false)",processReadFakeRequest))
-    ignore(p.Add("sendFakeRequest|sfr=", "Specify whether relay should send a fake http request when it connects to the forward address (Default: false)",processSendFakeRequest))
+//    ignore(p.Add("readFakeRequest|rfr=", "Specify whether relay should read a fake http request when it accepts new tcp connections (Default: false)",processReadFakeRequest))
+//    ignore(p.Add("sendFakeRequest|sfr=", "Specify whether relay should send a fake http request when it connects to the forward address (Default: false)",processSendFakeRequest))
     ignore(p.Add("encryptReceive|er=", "whether relay should encrypt the data received from tcp connections received on listen port (Default: false)",processEncryptReceive))
     ignore(p.Add("decryptReceive|dr=", "whether relay should decrypt the data received from tcp connections received on listen port (Default: false)",processDecryptReceive))
     ignore(p.Add("help|h|?", "Show this message and exit",processHelp))
+    ignore(p.Add("connectToRelay|cr=","Specify whether the other relay resides on listen or connect side of this relay. For example if your browser connects to this relay specify this flag as true and the flag of other relay as false.",processIsMajorOnListenSide))
 
     p.Parse(args)
+
+    
 let argValidity()=
     let mutable valid = true
     if listenTcpCount <> 1 && forwardTcpCount <> 1 then
@@ -140,6 +148,9 @@ let argValidity()=
     if encryptReceive = true && decryptReceive = true then
         printfn "Bad configuration. Both encrypt receive and decrypt receive are used"
         valid <- false
+    if listenTcpCount=1 && forwardTcpCount=1 && isMajorOnListenSide= -1 then
+        printfn "Specify the other relay direction using the .. flag"
+        valid <- false
     
     try
         ignore(Dns.GetHostAddresses(forwardAddress).[0])
@@ -151,16 +162,21 @@ let argValidity()=
 [<EntryPoint>]
    
 let main argv = 
-    printfn "main not implemented yet"
-    0
-//    ignore(processArgs(argv))
-//    if (help =false) && (argValidity() = true) then
-//        
-//        if (encryptReceive = false) && (decryptReceive = false) then
-//            // multi relay only, no encryption        
-//            
-//            ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest))
-//            
+    ignore(processArgs(argv))
+    if (help =false) && (argValidity() = true) then
+        let isListenOnMajor = 
+            match isMajorOnListenSide with
+            | -1 when forwardTcpCount=1 -> false
+            | -1 when listenTcpCount=1 -> true
+            | 0 -> true
+            | 1 -> false
+            |_ -> false
+            
+        if (encryptReceive = false) && (decryptReceive = false) then
+            // multi relay only, no encryption        
+            
+            ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,isListenOnMajor))
+            
 //        else if (listenTcpCount = 1) && (forwardTcpCount = 1) then
 //            if (readFakeRequest = false) && (sendFakeRequest = false) then
 //            // encrypted relay only, no multi relay
@@ -192,6 +208,6 @@ let main argv =
 //                let t1 = new Thread(fun() -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],intermediatePort,forwardTcpCount,segmentSize,minorSocketBufferSize,readFakeRequest,sendFakeRequest)))
 //                t1.Start()
 //                ignore(new EncryptedRelay(intermediatePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,encryptReceive))        
-//               
-//    0
+               
+    0
 
