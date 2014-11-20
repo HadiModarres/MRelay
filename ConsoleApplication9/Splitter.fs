@@ -102,7 +102,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     let callback1 = new AsyncCallback(this.ReceiveToMajorSocketCallback)
     let mutable sendingSocketCount = 0 
     let flushDoneLockObj = new obj()
-    let mutable readingMore = false
+//    let mutable readingMore = false
    // let mutable dataOver = false
     let mutable noMoreCyclesCallback = 
         fun(a: ICycle) -> ()
@@ -147,8 +147,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             Monitor.Exit flushDoneLockObj
 
     member this.ReceiveToMajorSocketCallback(result: IAsyncResult) =
-                readingMore <- false
-      //      try
+            try
                 let readCount = majorSocket.EndReceive(result)
                 if readCount < 1 then
                     this.majorReadDone()
@@ -164,9 +163,9 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
                     sendingSocketCount <- minorStreamQueue.Count
                     for sock in minorStreamQueue.ToArray() do
                         sock.Flush(this.MinorSocketFlushDone)
-//            with 
-//            | :? SocketException as e -> this.SocketExceptionOccured(majorSocket,e)
-//            | :? ObjectDisposedException -> ()  
+            with 
+            | :? SocketException as e -> this.SocketExceptionOccured(majorSocket,e)
+            | :? ObjectDisposedException -> ()  
 
     
    
@@ -187,7 +186,6 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     member this.ReadMoreData() = 
      //       printfn "reading more data"
             try
-                readingMore <- true
                 ignore(majorSocket.BeginReceive(majorSocketBuffer,0,min dataNeededToCompleteCycle majorSocketBufferSize,SocketFlags.None,callback1,null))
             with 
             | :? SocketException as e-> this.SocketExceptionOccured(majorSocket,e)
@@ -198,7 +196,9 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            totalTransferedData
+            let h = totalTransferedData
+            totalTransferedData <- 0UL
+            h
     interface ICycle with
         member this.CycleCallback
             with get() = cycleCallback

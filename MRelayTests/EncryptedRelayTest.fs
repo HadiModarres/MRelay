@@ -15,7 +15,7 @@ open EncryptedRelay
 open Microsoft.VisualStudio.TestTools.UnitTesting   
 
 [<TestClass>]
-type public EncryptedRelayTest() as this=
+type public EncryptedRelayTest() =
      let a = 2
      let file = @"c:\test\1.exe"
      let encryptedFile = @"c:\test\encrypted.exe"

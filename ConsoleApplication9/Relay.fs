@@ -35,18 +35,34 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         listeningSocket.Bind(receiveEndpoint)
         listeningSocket.Listen(10000)
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
+    
 
     member this.removePipe(pipe: Pipe)=
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
 
+
+    member this.SingleListen2()=
+        while true do
+            let newSocket = listeningSocket.Accept()
+            let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
+            let newGuid = Guid.NewGuid().ToByteArray()
+            socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
+            newPipe.GUID <- newGuid
+            printfn "accepted a new connection" 
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+            newPipe.NewSocketReceived(newSocket)
+
     member this.StartListening()=
         if  isMajorOnListen = true then
-            this.SingleListen()
+            this.SingleListen2()
             
         else
             this.MultiListen() 
         
     member this.SingleAccept(e: obj)=
+        this.SingleListen()
+
         let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
         let newGuid = Guid.NewGuid().ToByteArray()
         socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
@@ -54,10 +70,10 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
         let sc = e :?> SocketAsyncEventArgs
         
         let newSocket = sc.AcceptSocket
+        printfn "accepted a new connection" 
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         newPipe.NewSocketReceived(newSocket)
-        this.SingleListen()
     
     member this.SingleListen()=
         let sc = new SocketAsyncEventArgs()
@@ -65,15 +81,17 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
             let bo = listeningSocket.AcceptAsync(sc)
             if bo = true then
                 sc.Completed.Add(this.SingleAccept)
+                
             
             else
                 this.SingleAccept(sc)               
         with
-        | _ as e-> printfn "%A" e.Message 
+        | _ as e-> printfn "accept exception: %A" e.Message 
              
     member this.MultiAccept(e: obj)=
         let sc = e :?> SocketAsyncEventArgs
         let newSocket = sc.AcceptSocket
+        printfn "accepted a new connection : %A" newSocket
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
         let guid = Array.create guidSize (new Byte())
@@ -179,7 +197,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
-    let throttleSize = 8
+    let throttleSize = 16
     let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
@@ -189,7 +207,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         
     do  
         if isMajorOnListen = true then
-            monitor <- new Monitor(this,1000)
+            monitor <- new Monitor(this,4000)
             monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
@@ -212,6 +230,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
                 monitor.Add(pipe)
         
         member x.pipeDone(pipe: obj)=
+            printfn "pipe done"
             if monitor <> null then
                 monitor.Remove(pipe :?> IDataPipe)
             server.removePipe(pipe :?> Pipe)

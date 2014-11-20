@@ -149,7 +149,7 @@ let argValidity()=
         printfn "Bad configuration. Both encrypt receive and decrypt receive are used"
         valid <- false
     if listenTcpCount=1 && forwardTcpCount=1 && isMajorOnListenSide= -1 then
-        printfn "Specify the other relay direction using the .. flag"
+        printfn "Missing Flag,specify the other relay direction using the -connectToRelay={true,false} flag"
         valid <- false
     
     try
@@ -175,8 +175,9 @@ let main argv =
         if (encryptReceive = false) && (decryptReceive = false) then
             // multi relay only, no encryption        
             
-            ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,isListenOnMajor))
-            
+            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,isListenOnMajor)
+            let s= System.Console.ReadLine()
+            ()
 //        else if (listenTcpCount = 1) && (forwardTcpCount = 1) then
 //            if (readFakeRequest = false) && (sendFakeRequest = false) then
 //            // encrypted relay only, no multi relay

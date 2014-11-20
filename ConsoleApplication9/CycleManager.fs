@@ -52,7 +52,7 @@ type CycleManager() as x=
     member x.AddToChain(cycler: ICycle)=
         ignore(chain.Add(cycler))
         cycler.NoMoreCyclesCallback <- x.NoMoreCyclesLeft
-        printfn "adding to chain at %i" cycleNumber
+        //printfn "adding to chain at %i" cycleNumber
  
     member x.NoMoreCyclesLeft(cycler: ICycle)=
         ignore(chain.Remove(cycler))

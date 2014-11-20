@@ -38,8 +38,9 @@ type MonitorObject(p:IDataPipe)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
         currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
-        
-        if (currentSpeed > (0.6 * (float)highestSpeed)) then
+     //   printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
+
+        if (currentSpeed > (0.4 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
         else 
             longestActiveTransfer <- 0
@@ -78,10 +79,13 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
         Monitor.Exit lockobj
     member x.Remove(objectToBeRemovedFromBeingMonitored: IDataPipe)=
         Monitor.Enter lockobj
-        for i= monitoredObjects.Count-1 downto 0 do
-            if monitoredObjects.[i].DataPipe = objectToBeRemovedFromBeingMonitored then
-                monitoredObjects.RemoveAt(i)
+        printfn "monitor remove called"
+        if monitoredObjects.Count>0 then
+            for i= monitoredObjects.Count-1 downto 0 do
+                if monitoredObjects.[i].DataPipe = objectToBeRemovedFromBeingMonitored then
+                    monitoredObjects.RemoveAt(i)
         Monitor.Exit lockobj
+        
     member x.Start() = // monitor will stop by default after firing delegate method
         ignore(timer.Change(0,period))
     member x.Reset() =
@@ -97,9 +101,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
         
 
     member x.RemoveCriteriaTypeFromList(crit: CriterionType) =
-        for i=criteria.Count-1 downto 0 do
-            if criteria.[i].CriterionType = crit then
-                criteria.RemoveAt(i)
+        if criteria.Count>0 then
+            for i=criteria.Count-1 downto 0 do
+                if criteria.[i].CriterionType = crit then
+                    criteria.RemoveAt(i)
         
     
     member private x.Update()=
@@ -111,13 +116,14 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     member private x.Process(timerObj: obj)=
         Monitor.Enter lockobj
         x.Update()
-        for i= monitoredObjects.Count-1 downto 0 do
-            let f1 = x.MatchesCriterion monitoredObjects.[i]
-            let pr = new Predicate<Criterion>(f1)
-            if Array.TrueForAll(criteria.ToArray(),pr) then
-                printfn "firing"
-                deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
-                monitoredObjects.RemoveAt(i)
+        if monitoredObjects.Count>0 then
+            for i= monitoredObjects.Count-1 downto 0 do
+                let f1 = x.MatchesCriterion monitoredObjects.[i]
+                let pr = new Predicate<Criterion>(f1)
+                if Array.TrueForAll(criteria.ToArray(),pr) then
+                    printfn "firing"
+                    deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
+                    monitoredObjects.RemoveAt(i)
 
         processCount <- (processCount + 1)
         Monitor.Exit lockobj

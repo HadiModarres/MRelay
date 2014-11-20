@@ -75,8 +75,8 @@ type RelayTest() =
           //  t1.Abort()
           //  t2.Abort()
        //     printfn "relay aborted"
-            t1.Join()
-            t2.Join()
+//            t1.Join()
+//            t2.Join()
 
             let s3 = x.GetFileMDR(@"c:\test\1.exe")
             let s4 = x.GetFileMDR(@"c:\test\output.exe")

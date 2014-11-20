@@ -27,9 +27,10 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let splitterChain = new CycleManager()
     let timerCallback = new TimerCallback(this.ThrottleTest)
     let timer = new Threading.Timer(timerCallback)
-    let mutable cycleCount = 0
     let lockobj = new obj()
     let throttleCycleDelay = 3 //
+    let mutable totalTransferedBytes = 0UL 
+
     do
         socketStore.AddMinorSet(minorCount)
 
@@ -317,11 +318,10 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         socketStore.Close()
     interface IDataPipe with
         member x.TotalTransferedData()=
-            let mutable tot = 0UL
             for o in splitterChain.GetAll do
                 let k = o :?> IDataPipe
-                tot <- (tot+k.TotalTransferedData())
+                totalTransferedBytes <- (totalTransferedBytes+k.TotalTransferedData())
             for o in mergerChain.GetAll do
                 let k = o :?> IDataPipe
-                tot <- (tot+k.TotalTransferedData())
-            tot
+                totalTransferedBytes <- (totalTransferedBytes+k.TotalTransferedData())
+            totalTransferedBytes
