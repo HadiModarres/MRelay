@@ -208,7 +208,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             | :? SocketException as e -> socketManager.SocketExceptionOccured majorSock e
             | :? ObjectDisposedException -> ()
         if dataNeededToCompleteCycle = 0 then
-            dataNeededToCompleteCycle <-  segmentSize * minorSock.GetLength(0)
+            dataNeededToCompleteCycle <-  minorSock.GetLength(0) *  segmentSize
             cycleCallback()
         else
             this.ReadFromHeadOfQueue()

@@ -110,7 +110,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     let mutable cycleCallback =
         fun() -> ()
 
-    let mutable dataNeededToCompleteCycle = majorSocketBufferSize
+    let mutable dataNeededToCompleteCycle = segmentSize * minorSockets.GetLength(0)
 
 //    let mutable paused = false
     let mutable pendingData = 0UL
@@ -204,7 +204,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             with get() = cycleCallback
             and set(f:unit->unit)= cycleCallback <- f
         member this.Cycle()=
-            dataNeededToCompleteCycle <- majorSocketBufferSize
+            dataNeededToCompleteCycle <- segmentSize * minorSockets.GetLength(0)
             this.ReadMoreData()
         member this.NoMoreCyclesCallback
             with set(f: ICycle -> unit) =  noMoreCyclesCallback <- f

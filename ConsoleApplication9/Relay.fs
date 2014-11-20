@@ -197,7 +197,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
-    let throttleSize = 16
+    let throttleSize = 20
     let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
