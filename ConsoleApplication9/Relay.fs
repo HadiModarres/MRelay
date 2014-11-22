@@ -21,15 +21,18 @@ open IDataPipe
 open Pipe
 open IPipeManager
 open IMonitorDelegate
+open System.Collections.Generic
 
 let guidSize = 16 // size of guid in bytes
+let mutable totalAcceptedConnections = 0
 
-type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: int,isMajorOnListen: bool) as this=
+type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: int,isMajorOnListen: bool) as this=
     let lockobj = new obj()
     let socketStoreMap = new Generic.Dictionary<string,Pipe>()
     let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
     let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
-    
+    let lockobj2 = new obj()
+    let lockobj3 = new obj()
     do
         listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         listeningSocket.Bind(receiveEndpoint)
@@ -37,13 +40,22 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
     
 
-    member this.removePipe(pipe: Pipe)=
+    member this.removePi(pipe: Pipe,a: int)=
+     //   Monitor.Enter lockobj3
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
-
+        printfn "pipes in dictionary: %i" socketStoreMap.Count
+        printfn "total accepted: %i" totalAcceptedConnections
+//        for p:Pipe in arr do
+//            p.Test()
+       //     printfn "%A" p.GUID
+      //  Monitor.Exit lockobj3
 
     member this.SingleListen2()=
         while true do
+            Monitor.Enter lockobj2
             let newSocket = listeningSocket.Accept()
+            totalAcceptedConnections <- (totalAcceptedConnections+1)
+
             let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
             let newGuid = Guid.NewGuid().ToByteArray()
             socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
@@ -52,56 +64,75 @@ type private Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,mi
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
             newPipe.NewSocketReceived(newSocket)
+            Monitor.Exit lockobj2
 
     member this.StartListening()=
         if  isMajorOnListen = true then
             this.SingleListen2()
             
         else
-            this.MultiListen() 
+            this.MultiListen2() 
         
-    member this.SingleAccept(e: obj)=
-        this.SingleListen()
-
-        let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
-        let newGuid = Guid.NewGuid().ToByteArray()
-        socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
-        newPipe.GUID <- newGuid
-        let sc = e :?> SocketAsyncEventArgs
-        
-        let newSocket = sc.AcceptSocket
-        printfn "accepted a new connection" 
-        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
-        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-        newPipe.NewSocketReceived(newSocket)
-    
-    member this.SingleListen()=
-        let sc = new SocketAsyncEventArgs()
-        try
-            let bo = listeningSocket.AcceptAsync(sc)
-            if bo = true then
-                sc.Completed.Add(this.SingleAccept)
-                
-            
-            else
-                this.SingleAccept(sc)               
-        with
-        | _ as e-> printfn "accept exception: %A" e.Message 
+//    member this.SingleAccept(e: obj)=
+//        this.SingleListen()
+//
+//        let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
+//        let newGuid = Guid.NewGuid().ToByteArray()
+//        socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
+//        newPipe.GUID <- newGuid
+//        let sc = e :?> SocketAsyncEventArgs
+//        
+//        let newSocket = sc.AcceptSocket
+//        printfn "%A" sc.SocketError
+//
+//        printfn "accepted a new connection" 
+//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+//        newPipe.NewSocketReceived(newSocket)
+//    
+//    member this.SingleListen()=
+//        let sc = new SocketAsyncEventArgs()
+//        try
+//            let bo = listeningSocket.AcceptAsync(sc)
+//            if bo = true then
+//                sc.Completed.Add(this.SingleAccept)
+//                
+//            
+//            else
+//                this.SingleAccept(sc)               
+//        with
+//        | _ as e-> printfn "accept exception: %A" e.Message 
              
     member this.MultiAccept(e: obj)=
+        this.MultiListen()
+
         let sc = e :?> SocketAsyncEventArgs
         let newSocket = sc.AcceptSocket
         printfn "accepted a new connection : %A" newSocket
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+
         let guid = Array.create guidSize (new Byte())
         try
             ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
         with
         | :? SocketException -> newSocket.Close()
         | :? ObjectDisposedException -> ()
-        this.MultiListen()
         
+    member this.MultiListen2()=
+        while true do 
+            let newSocket = listeningSocket.Accept()
+            printfn "accepted a new connection : %A" newSocket
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+
+            let guid = Array.create guidSize (new Byte())
+            try
+                ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
+            with
+            | :? SocketException -> newSocket.Close()
+            | :? ObjectDisposedException -> ()
+
     member this.MultiListen()=
         
         try
@@ -150,14 +181,16 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
 
     let callback= new AsyncCallback(this.ConnectCallback)
     let sendCallback = new AsyncCallback(this.SendCallback)
-        
+      
 
     member this.Connect(pipe: Pipe) =
         let s= new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
         s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
         s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+        pipe.AddPendingSocket(s)
         try
             ignore(s.BeginConnect(forwardRelayAddress,forwardRelayPort,callback,(s,pipe)))
+            
         with
         | :? SocketException -> pipe.Close()
         | :? ObjectDisposedException -> ()
@@ -197,14 +230,14 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
-    let throttleSize = 20
+    let throttleSize = 16
     let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
 //    let monitor = new Monitor(this.MonitorFired)
  //   let mutable connect = 0
-        
+    let lockobj = new obj()
     do  
         if isMajorOnListen = true then
             monitor <- new Monitor(this,4000)
@@ -230,10 +263,14 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
                 monitor.Add(pipe)
         
         member x.pipeDone(pipe: obj)=
-            printfn "pipe done"
+//            totPipes <- totPipes - 1
+//            printfn "pipe done, total: %i" totPipes
+            Monitor.Enter lockobj
+            printfn "pipe done on relay fucking called"
+            server.removePi(pipe :?> Pipe,3)
             if monitor <> null then
                 monitor.Remove(pipe :?> IDataPipe)
-            server.removePipe(pipe :?> Pipe)
+            Monitor.Exit lockobj
 
     interface IMonitorDelegate with
         member x.objectHasReachedActivityCriteria(pipe: obj)=

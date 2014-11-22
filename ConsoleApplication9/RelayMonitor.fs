@@ -116,6 +116,7 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     member private x.Process(timerObj: obj)=
         Monitor.Enter lockobj
         x.Update()
+        
         if monitoredObjects.Count>0 then
             for i= monitoredObjects.Count-1 downto 0 do
                 let f1 = x.MatchesCriterion monitoredObjects.[i]

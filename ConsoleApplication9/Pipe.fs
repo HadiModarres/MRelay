@@ -14,6 +14,10 @@ open ICycle
 open CycleManager
 open IDataPipe
 
+//let mutable totPipes = 0
+let mutable reachedRelay = 0
+
+[<AllowNullLiteral>] 
 type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSide: bool)as this=  // saves state info for each tcp pipe and implements MRelay protocol
     let mutable state = PipeState.AcceptingConnections
     let majorReadCallback = new AsyncCallback(this.DataReceiveToMajorSocket)
@@ -30,9 +34,11 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let lockobj = new obj()
     let throttleCycleDelay = 3 //
     let mutable totalTransferedBytes = 0UL 
+    let pendingSockets = Generic.List<Socket>()
 
     do
         socketStore.AddMinorSet(minorCount)
+//        totPipes <- totPipes+1
 
 //    do 
 //        ignore(timer.Change(6000,Timeout.Infinite))
@@ -43,6 +49,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         state <- PipeState.Closing
         pipeManager.pipeDone(this)
         Monitor.Exit lockobj
+    
     
     member this.ThrottleTest(timerObj: obj)=
         ignore(this.ThrottleUp(20))
@@ -56,6 +63,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         | PipeState.AcceptingConnections when isMajorSocketOnRelayListenSide=true -> 
             state <- PipeState.Connecting
             socketStore.MajorSocket <- socket
+            
             for i = 0 to minorCount-1 do
                 pipeManager.needAConnection(this) 
             ()
@@ -81,6 +89,9 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
 
     member public this.SocketConnected(socket: Socket)=
         Monitor.Enter lockobj
+        
+        ignore(pendingSockets.Remove(socket))
+
         match state with
         | PipeState.Connecting when isMajorSocketOnRelayListenSide= false ->
             socketStore.MajorSocket <- socket;
@@ -100,6 +111,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             ()
         | PipeState.ThrottlingUp_ConnectingFirstConnection when isMajorSocketOnRelayListenSide = true ->
             state <- PipeState.ThrottlingUp_SendingSyncInfo
+        
             socketStore.AddMinorSet(throttleUpSize)
             let index = socketStore.AddMinorSocket(socket)
             let currentSplitterCycleNumber = splitterChain.Pause(fun ()->())
@@ -303,6 +315,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
 
     member private this.InitRelay()=
         Monitor.Enter lockobj
+        reachedRelay <- (reachedRelay+1)
+        printfn "reached relay: %i" reachedRelay
         pipeManager.dataTransferIsAboutToBegin(this)
         state <- PipeState.Relaying
         let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
@@ -314,8 +328,14 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         splitterChain.Resume()
         mergerChain.Resume()
         Monitor.Exit lockobj
-    member this.Close()= 
+    member this.Close()=
+        for sock in pendingSockets do
+            sock.Close() 
         socketStore.Close()
+    member this.AddPendingSocket(s: Socket)=
+        pendingSockets.Add(s)
+    member this.Test()=
+        socketStore.print()
     interface IDataPipe with
         member x.TotalTransferedData()=
             for o in splitterChain.GetAll do

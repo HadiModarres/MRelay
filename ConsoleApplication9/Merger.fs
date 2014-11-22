@@ -70,143 +70,125 @@ let mutable aggregateData = 0
 ////            | :? ObjectDisposedException -> ()  
 //
 
-type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)->unit) as this=
-    let mutable  totalAvailable = 0
-    let mutable totalSent = 0 
-    let buffer = Array.create socketBufferSize (new Byte())
-    let mutable neededBytes = segmentSize
-    let callback = new AsyncCallback(this.SendToMajorSocketCallback)
-
-    
-
-    member this.Flush(flushDone: uint64-> unit) =
-        if totalAvailable = 0 then // no data to be sent
-            ()//do flushDone()
-        else
-            
-            do this.SendMore(flushDone)
-
-    member this.HaveMoreRoom() =
-        if socketBufferSize-totalAvailable < segmentSize then
-            false
-        else
-            true        
-
-    member this.ConsumeBuffer(buff: MemoryStream) = 
-        totalSent <- 0
-        
-//        if (buff = null) || buff.GetLength(0)=0 then
-//            false,null
+//type MajorSocket(socket: Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)->unit) as this=
+//    let mutable  totalAvailable = 0
+//    let mutable totalSent = 0 
+//    let buffer = Array.create socketBufferSize (new Byte())
+//    let mutable neededBytes = segmentSize
+//    let callback = new AsyncCallback(this.SendToMajorSocketCallback)
+//
+//    
+//
+//    member this.Flush(flushDone: uint64-> unit) =
+//        if totalAvailable = 0 then // no data to be sent
+//            ()//do flushDone()
 //        else
-//            if buff.GetLength(0) < neededBytes then
-//                Array.blit buff 0 buffer totalAvailable (buff.GetLength(0))
-//                neededBytes <- (neededBytes - buff.GetLength(0))
-//                totalAvailable <- (totalAvailable + buff.GetLength(0))
-//                false,null
-//            else 
-//                Array.blit buff 0 buffer totalAvailable neededBytes
-//                totalAvailable <- (totalAvailable + neededBytes)
-//                let arr = Array.create ((buff.GetLength(0))-neededBytes) (new Byte())
-//                Array.blit buff neededBytes arr 0 (arr.GetLength(0)) 
-//                neededBytes <- segmentSize
-//                true,arr
-        if (buff.Length - buff.Position)< (int64)neededBytes then
-            let read = buff.Read(buffer,totalAvailable,(int)(buff.Length-buff.Position))
-            totalAvailable <- totalAvailable + read
-            neededBytes <- neededBytes - read
-            false
-        else
-            let read = buff.Read(buffer,totalAvailable,neededBytes)
-            totalAvailable <- totalAvailable + read
-            neededBytes <- segmentSize
-            true
-
-            
-        
-    member private this.SendMore(flushDone:uint64 -> unit) =
-            try
-                ignore(socket.BeginSend(buffer,totalSent,totalAvailable-totalSent,SocketFlags.None,callback,flushDone))
-            with 
-            | :? SocketException as e -> socketException(socket,e)
-            | :? ObjectDisposedException -> ()
-        
-    member private this.SendToMajorSocketCallback(result: IAsyncResult)=
-            try
-                let sentBytes = socket.EndSend(result)
-                let (f:uint64 -> unit)=(result.AsyncState) :?> (uint64 -> unit)
-                if sentBytes > 0 then
-                    totalSent <- (totalSent + sentBytes)
-                    if totalSent = totalAvailable then // sent all data
-                        let temp = (uint64)totalSent 
-                        do this.Reset()
-                        do f(temp)
-                    else
-                        this.SendMore(f) // send the rest
-                else  // failed to send any data
-                    ()
-            with 
-            | :? SocketException as e -> socketException(socket,e)
-            | :? ObjectDisposedException -> ()  
-
-
-    member private this.Reset()=
-        totalAvailable <- 0
-        totalSent <- 0
+//            
+//            do this.SendMore(flushDone)
+//
+//    member this.HaveMoreRoom() =
+//        if socketBufferSize-totalAvailable < segmentSize then
+//            false
+//        else
+//            true        
+//
+//    member this.ConsumeBuffer(buff: MemoryStream) = 
+//        totalSent <- 0
+//        
+////        if (buff = null) || buff.GetLength(0)=0 then
+////            false,null
+////        else
+////            if buff.GetLength(0) < neededBytes then
+////                Array.blit buff 0 buffer totalAvailable (buff.GetLength(0))
+////                neededBytes <- (neededBytes - buff.GetLength(0))
+////                totalAvailable <- (totalAvailable + buff.GetLength(0))
+////                false,null
+////            else 
+////                Array.blit buff 0 buffer totalAvailable neededBytes
+////                totalAvailable <- (totalAvailable + neededBytes)
+////                let arr = Array.create ((buff.GetLength(0))-neededBytes) (new Byte())
+////                Array.blit buff neededBytes arr 0 (arr.GetLength(0)) 
+////                neededBytes <- segmentSize
+////                true,arr
+//        if (buff.Length - buff.Position)< (int64)neededBytes then
+//            let read = buff.Read(buffer,totalAvailable,(int)(buff.Length-buff.Position))
+//            totalAvailable <- totalAvailable + read
+//            neededBytes <- neededBytes - read
+//            false
+//        else
+//            let read = buff.Read(buffer,totalAvailable,neededBytes)
+//            totalAvailable <- totalAvailable + read
+//            neededBytes <- segmentSize
+//            true
+//
+//            
+//        
+//    member private this.SendMore(flushDone:uint64 -> unit) =
+//            try
+//                ignore(socket.BeginSend(buffer,totalSent,totalAvailable-totalSent,SocketFlags.None,callback,flushDone))
+//            with 
+//            | :? SocketException as e -> socketException(socket,e)
+//            | :? ObjectDisposedException -> ()
+//        
+//    member private this.SendToMajorSocketCallback(result: IAsyncResult)=
+//            try
+//                let sentBytes = socket.EndSend(result)
+//                let (f:uint64 -> unit)=(result.AsyncState) :?> (uint64 -> unit)
+//                if sentBytes > 0 then
+//                    totalSent <- (totalSent + sentBytes)
+//                    if totalSent = totalAvailable then // sent all data
+//                        let temp = (uint64)totalSent 
+//                        do this.Reset()
+//                        do f(temp)
+//                    else
+//                        this.SendMore(f) // send the rest
+//                else  // failed to send any data
+//                    ()
+//            with 
+//            | :? SocketException as e -> socketException(socket,e)
+//            | :? ObjectDisposedException -> ()  
+//
+//
+//    member private this.Reset()=
+//        totalAvailable <- 0
+//        totalSent <- 0
 
 [<AllowNullLiteral>]
 type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
-//    let mutable majorSocketBufferSize = (minorSock.GetLength(0))*minorSocketBufferSize
-//    let mutable majorSocketBuffer = Array.create majorSocketBufferSize (new Byte())
     let minorStreamQueue = new Generic.Queue<Socket>()
-//    let majorSocket = new MajorSocket(majorSock,majorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
-//    let mutable feeding = false
-//    let lockobj = new obj()
-//    let lockobj2 = new obj()
-   // let timerCallback = new TimerCallback(this.feedDriver)
-  //  let timer = new Threading.Timer(timerCallback)
-//    let mutable dataOver = false
-//    let mutable segmentCount = 0
-    let mutable noMoreCyclesCallback = 
-        fun(a: ICycle) -> ()
-    let mutable totalTransferedData = 0UL
-    let mutable pendingData = 0UL
-
-
-    let mutable neededBytesToCompleteSegment = segmentSize
     let minorReadCallback = new AsyncCallback(this.ReadFromMinorSocketCallback)
     let majorSendCallback = new AsyncCallback(this.SendToMajorSocketCallback)
     let buffer = Array.create segmentSize (new Byte())
-
+    let mutable totalTransferedData = 0UL
+    let mutable pendingData = 0UL
+    let mutable dataNeededToCompleteCycle = segmentSize * minorSock.GetLength(0)
+    let mutable neededBytesToCompleteSegment = segmentSize
     let mutable cycleCallback =
         fun() -> ()
+    let mutable noMoreCyclesCallback = 
+        fun(a: ICycle) -> ()
 
-    let mutable dataNeededToCompleteCycle = segmentSize * minorSock.GetLength(0)
 
     do
         for sock in minorSock do
-    //        let min = new MinorSocket(sock,minorSocketBufferSize,segmentSize,this.SocketExceptionOccured)
             minorStreamQueue.Enqueue(sock)
-      //  this.ReadFromHeadOfQueue()
 
-//        for sock in minorStreamQueue.ToArray() do
-//            sock.StartReading();
-     //   ignore(timer.Change(0,Timeout.Infinite))
         
     member this.ReadFromHeadOfQueue()=
         let s = minorStreamQueue.Peek()
         try
             ignore(s.BeginReceive(buffer,0,neededBytesToCompleteSegment,SocketFlags.None,minorReadCallback,s))
         with 
-            | :? SocketException as e -> socketManager.SocketExceptionOccured s e
-            | :? ObjectDisposedException -> ()
+        | _ as e-> socketManager.SocketExceptionOccured(minorSock,s,e)
+
     member this.SendToMajorSocketCallback(result: IAsyncResult)=
         try
             ignore(majorSock.EndSend(result))
             totalTransferedData <- totalTransferedData + pendingData
             pendingData <- 0UL
         with 
-            | :? SocketException as e -> socketManager.SocketExceptionOccured majorSock e
-            | :? ObjectDisposedException -> ()
+        | _ as e-> socketManager.SocketExceptionOccured(minorSock,majorSock,e)
+
         if dataNeededToCompleteCycle = 0 then
             dataNeededToCompleteCycle <-  minorSock.GetLength(0) *  segmentSize
             cycleCallback()
@@ -220,6 +202,7 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             if readCount<1 then
                 socketManager.MinorReadDone(minorSock)
                 noMoreCyclesCallback(this)
+                cycleCallback()
             else
                 pendingData <-(uint64) readCount
                 neededBytesToCompleteSegment <- (neededBytesToCompleteSegment - readCount)
@@ -231,14 +214,10 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
                 try
                     ignore(majorSock.BeginSend(buffer,0,readCount,SocketFlags.None,majorSendCallback,null))
                 with 
-                | :? SocketException as e -> socketManager.SocketExceptionOccured majorSock e
-                | :? ObjectDisposedException -> ()
+                | _ as e-> socketManager.SocketExceptionOccured(minorSock,majorSock,e)
         with 
-            | :? SocketException as e -> socketManager.SocketExceptionOccured s e
-            | :? ObjectDisposedException -> ()
-    member this.SocketExceptionOccured(sock: Socket,exc:Exception) = 
-          socketManager.SocketExceptionOccured sock exc
-
+        | _ as e-> socketManager.SocketExceptionOccured(minorSock,s,e)
+    
 //    member this.MajorSocketFlushDone(flushedCount: uint64) = 
 //       // Monitor.Enter lockobj             
 //        feeding <- false
