@@ -62,9 +62,9 @@
     <Compile Include="ISocketManager.fs" />
     <Compile Include="EncryptedPipe.fs" />
     <None Include="App.config" />
+    <Compile Include="CycleManager.fs" />
     <Compile Include="Splitter.fs" />
     <Compile Include="Merger.fs" />
-    <Compile Include="CycleManager.fs" />
     <Compile Include="SocketStore.fs" />
     <Compile Include="Pipe.fs" />
     <Compile Include="RelayMonitor.fs" />

@@ -2,8 +2,6 @@
 
 open System
 open System.Collections
-open Splitter
-open Merger
 open ICycle
 open System.Threading
 open System.Collections.Generic
@@ -35,7 +33,7 @@ type CycleManager() as x=
         with get() = cycleNumber
 
     member x.GetAll
-        with get() = chain
+        with get() = chain.ToArray()
 
     
     
@@ -118,6 +116,9 @@ type CycleManager() as x=
             printfn "can't resume, chain empty"
         Monitor.Exit lockobj
 
+    member x.ResumeOneCycle()=
+        if paused=true then
+            x.BeforeCycle()
     member x.AttachAfterCycle(cycler: ICycle,cycleNum: int)=
         toBeAttached.Enqueue(cycler)
         toBeAttachedCycleNumbers.Enqueue(cycleNum)

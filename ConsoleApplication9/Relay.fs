@@ -241,7 +241,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     do  
         if isMajorOnListen = true then
             monitor <- new Monitor(this,4000)
-            monitor.Start()
+          //  monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
         else
