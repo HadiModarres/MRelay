@@ -27,7 +27,7 @@ let mutable aggregateData = 0
 
 
 type private MinorSocket(socket: Socket,majorSocket:Socket,socketBufferSize: int,segmentSize: int,socketException: (Socket*Exception)-> unit,readDone:unit->unit) as this=
-    let mutable buffer = Array.create socketBufferSize (new Byte())
+    let mutable buffer = Array.create socketBufferSize 0uy
     let mutable receivedCount = 0
     let mutable sentCount = 0
     let receiveCallback = new AsyncCallback(this.ReceiveCallback)
@@ -47,9 +47,11 @@ type private MinorSocket(socket: Socket,majorSocket:Socket,socketBufferSize: int
         
     member this.SendMore()=
         Monitor.Enter lockobj
+        
         if receivedCount = sentCount then
             if dataDone = true then
                 buffer <- null // is this necessary or just a result of leakophobia
+             //   Array.Resize<byte>(&buffer,0)
                 readDone()
                 //cycleCallback()
             else
@@ -104,6 +106,8 @@ type private MinorSocket(socket: Socket,majorSocket:Socket,socketBufferSize: int
                 this.SendMore()
         with
         | _ as e -> socketException(majorSocket,e)
+    member this.finali()=
+        buffer <- null
     interface ICycle with
         member this.CycleCallback
             with get() = cycleCallback

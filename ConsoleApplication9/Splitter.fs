@@ -132,6 +132,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             flushedCount <- 0
             if dataNeededToCompleteCycle = 0 then
                 dataNeededToCompleteCycle <- minorSocketBufferSize*minorSockets.GetLength(0) 
+                
                 cycleCallback()         
             else
                 this.ReadMore()

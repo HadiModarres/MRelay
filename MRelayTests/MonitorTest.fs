@@ -23,6 +23,8 @@ open TestTypes
 type MonitorTest() as this =   
     let mutable delFired = false
     let change1 = new Generic.Queue<int>()
+    let mutable dr = null
+   // let mutable ar = null
     do 
         change1.Enqueue(3000)
         change1.Enqueue(1*1024*1024)
@@ -32,10 +34,20 @@ type MonitorTest() as this =
         change1.Enqueue(1*1024*1024)
         change1.Enqueue(1*1024*1024)
         change1.Enqueue(1*1024*1024)
-    
+        this.init()
+        this.TestRef()
 
+    member this.init()=
+        let ar = Array.create 50000000 0uy
+        dr <- new WeakReference(ar)
+    member this.TestRef()=
+        GC.Collect()
+        
+        printfn "is alive: %b" dr.IsAlive
+        ()
     [<TestMethod>]
     member x.TestStreamDetection()=
+       // dr <- new WeakReference(ar)
         let m = new Monitor(this,1000)
         let t = new t1(change1)
         m.Add(t)

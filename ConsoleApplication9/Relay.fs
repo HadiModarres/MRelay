@@ -230,7 +230,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
-    let throttleSize = 16
+    let throttleSize = 15
     let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
@@ -238,6 +238,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
 //    let monitor = new Monitor(this.MonitorFired)
  //   let mutable connect = 0
     let lockobj = new obj()
+    let weakReferences = Generic.List<WeakReference>()
     do  
         if isMajorOnListen = true then
             monitor <- new Monitor(this,4000)
@@ -247,7 +248,9 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         else
             printfn "multi to multi relay not supported yet, and can be easily accomplished with two relays"
 
-
+    member x.printAllWeakReferences()=  
+        for s in weakReferences.ToArray() do
+            printfn "is garbage collected: %b" (not s.IsAlive)
     interface IPipeManager with
         member x.needAConnection(pipe: obj) =
             let p = pipe :?> Pipe
@@ -262,14 +265,20 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             if isMajorOnListen = true && monitor<>null then
                 monitor.Add(pipe)
         
+        
+
         member x.pipeDone(pipe: obj)=
 //            totPipes <- totPipes - 1
 //            printfn "pipe done, total: %i" totPipes
             Monitor.Enter lockobj
-            printfn "pipe done on relay fucking called"
+            //printfn "pipe done on relay fucking called"
             server.removePi(pipe :?> Pipe,3)
             if monitor <> null then
                 monitor.Remove(pipe :?> IDataPipe)
+            let wr = new WeakReference(pipe)
+            weakReferences.Add(wr)
+            x.printAllWeakReferences()
+            GC.Collect()
             Monitor.Exit lockobj
 
     interface IMonitorDelegate with
