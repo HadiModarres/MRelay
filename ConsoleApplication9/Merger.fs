@@ -37,47 +37,73 @@ type private MinorSocket(socket: Socket,majorSocket:Socket,socketBufferSize: int
     let mutable noMoreCyclesCallback = 
         fun(a: ICycle) -> ()
     let lockobj = new obj()
+    let lockobj2 = new obj()
+    let mutable sendWait = false
 
     let mutable dataDone = false
+    let lockobj = new obj()
     do
         this.ReadMore()    
         
     member this.SendMore()=
+        Monitor.Enter lockobj
         if receivedCount = sentCount then
             if dataDone = true then
                 buffer <- null // is this necessary or just a result of leakophobia
                 readDone()
                 //cycleCallback()
             else
+                sendWait <- true
+
                 if sentCount = socketBufferSize then
                     sentCount <- 0 
                     receivedCount <- 0
                     this.ReadMore()
-                Thread.Sleep(10)
-                this.SendMore()
+                //this.SendMore()
         else
-            ignore(majorSocket.BeginSend(buffer,sentCount,min (receivedCount-sentCount) (segmentSize-sentCount%segmentSize),SocketFlags.None,sendCallback,null))
-                
+            try
+                ignore(majorSocket.BeginSend(buffer,sentCount,min (receivedCount-sentCount) (segmentSize-sentCount%segmentSize),SocketFlags.None,sendCallback,null))
+            with
+            | _ as e -> socketException(majorSocket,e) 
+        Monitor.Exit lockobj
     member this.ReadMore()=
-        ignore(socket.BeginReceive(buffer,receivedCount,(min (socketBufferSize-receivedCount) segmentSize),SocketFlags.None,receiveCallback,null))
+        try
+            ignore(socket.BeginReceive(buffer,receivedCount,(min (socketBufferSize-receivedCount) segmentSize),SocketFlags.None,receiveCallback,null))
+        with
+        | _ as e -> socketException(socket,e)
+
     member this.ReceiveCallback(result: IAsyncResult)=
-        let count = socket.EndReceive(result)
-        if count < 1 then
-            dataDone <- true
-        else
-            receivedCount <- (receivedCount+count)
-            if receivedCount <> socketBufferSize then
-                
-                this.ReadMore()
-
+        Monitor.Enter lockobj
+        try
+            let count = socket.EndReceive(result)
+            if count < 1 then
+                dataDone <- true
+                if sendWait = true then
+                    sendWait <- false
+                    this.SendMore()
+           //   readDone()
+            //    Monitor.Exit lockobj
+            else
+                receivedCount <- (receivedCount+count)
+                if receivedCount <> socketBufferSize then
+                    this.ReadMore()
+            //    Monitor.Exit lockobj
+                if sendWait = true then
+                    sendWait <- false
+                    this.SendMore()
+        with
+        | _ as e -> socketException(socket,e)
+        Monitor.Exit lockobj
     member this.SendCallback(result: IAsyncResult)=
-        let sent = majorSocket.EndReceive(result)
-        sentCount <- (sentCount+sent)
-        if sentCount%segmentSize = 0 then // segment complete
-            cycleCallback()
-        else
-            this.SendMore()
-
+        try
+            let sent = majorSocket.EndReceive(result)
+            sentCount <- (sentCount+sent)
+            if sentCount%segmentSize = 0 then // segment complete
+                cycleCallback()
+            else
+                this.SendMore()
+        with
+        | _ as e -> socketException(majorSocket,e)
     interface ICycle with
         member this.CycleCallback
             with get() = cycleCallback
@@ -91,12 +117,12 @@ type private MinorSocket(socket: Socket,majorSocket:Socket,socketBufferSize: int
 [<AllowNullLiteral>]
 type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Socket[],segmentSize: int,minorSocketBufferSize: int) as this= // this class is responsible for reading data from multiple minor sockets and aggregate the data to send to major socket
     let mutable totalTransferedData = 0UL
-    let mutable pendingData = 0UL
+   // let mutable pendingData = 0UL
     let mutable cycleCallback =
         fun() -> ()
     let mutable noMoreCyclesCallback = 
         fun(a: ICycle) -> ()
-
+    let cycleSize = minorSocketBufferSize*minorSock.GetLength(0)
     let chain = new CycleManager()
     do
         this.init()    
@@ -106,7 +132,14 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             let ms = new MinorSocket(minorSock.[i],majorSock,minorSocketBufferSize,segmentSize,socketManager.SocketExceptionOccured,this.MergerDone)
             chain.AddToChain(ms)
         chain.UpdateChain()
-        ignore(chain.Pause(cycleCallback))
+        ignore(chain.Pause(this.segmentsSent))
+
+    member this.segmentsSent()=
+        totalTransferedData <- totalTransferedData + (uint64)(segmentSize*minorSock.GetLength(0))
+        if (totalTransferedData%(uint64)cycleSize = 0UL) then
+            cycleCallback()
+        else
+            chain.ResumeOneCycle()
     member this.MergerDone()=
         
         socketManager.MinorReadDone(minorSock)
@@ -114,16 +147,14 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
         cycleCallback()
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            let h = totalTransferedData
-            totalTransferedData <- 0UL
-            h
+            totalTransferedData
     interface ICycle with
         member this.CycleCallback
             with get() = cycleCallback
             and set(f:unit->unit)= cycleCallback <- f
         member this.Cycle()=
 //            this.ReadFromHeadOfQueue()
-            chain.Resume()
+            chain.ResumeOneCycle()
         member this.NoMoreCyclesCallback
             with set(f: ICycle -> unit) =  noMoreCyclesCallback <- f
        

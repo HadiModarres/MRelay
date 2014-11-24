@@ -35,6 +35,9 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let throttleCycleDelay = 3 //
     let mutable totalTransferedBytes = 0UL 
     let pendingSockets = Generic.List<Socket>()
+    
+    let chainAggregateData (sp:ICycle[]) = 
+        Array.fold (fun (acc:uint64) (d:ICycle)-> acc+(d:?>IDataPipe).TotalTransferedData()) 0UL sp
 
     do
         socketStore.AddMinorSet(minorCount)
@@ -336,12 +339,9 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         pendingSockets.Add(s)
     member this.Test()=
         socketStore.print()
+
+
     interface IDataPipe with
         member x.TotalTransferedData()=
-            for o in splitterChain.GetAll do
-                let k = o :?> IDataPipe
-                totalTransferedBytes <- (totalTransferedBytes+k.TotalTransferedData())
-            for o in mergerChain.GetAll do
-                let k = o :?> IDataPipe
-                totalTransferedBytes <- (totalTransferedBytes+k.TotalTransferedData())
-            totalTransferedBytes
+            let ch = chainAggregateData(splitterChain.GetAll())+chainAggregateData(mergerChain.GetAll())
+            ch

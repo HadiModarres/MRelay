@@ -36,7 +36,7 @@ type RelayTest() =
     
     [<TestMethod>]
     member x.TestSingleTcpFakeHeader()=
-        x.TestFileTransfer(1,10000,100000,true)
+        x.TestFileTransfer(1,100,900,true)
 
     [<TestMethod>]
     member x.TestMultiTcpFakeHeader()=

@@ -8,6 +8,7 @@ open System.Collections.Generic
 
 type CycleManager() as x=
     let chain = new Generic.List<ICycle>()
+    let finished = new Generic.List<ICycle>()
     let mutable cycleNumber = 0
     let mutable updateNeeded = false
     let mutable chainCallback =
@@ -32,8 +33,8 @@ type CycleManager() as x=
     member x.CycleNum
         with get() = cycleNumber
 
-    member x.GetAll
-        with get() = chain.ToArray()
+    member x.GetAll()=
+        Array.append (chain.ToArray()) (finished.ToArray())
 
     
     
@@ -54,6 +55,7 @@ type CycleManager() as x=
  
     member x.NoMoreCyclesLeft(cycler: ICycle)=
         ignore(chain.Remove(cycler))
+        finished.Add(cycler)
         updateNeeded <- true
 
     

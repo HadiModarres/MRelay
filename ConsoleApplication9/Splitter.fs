@@ -139,9 +139,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     
     interface IDataPipe with
         member x.TotalTransferedData()= 
-            let h = totalData
-            totalData <- 0UL
-            h          
+            totalData          
     interface ICycle with
         member this.CycleCallback
             with get() = cycleCallback

@@ -38,7 +38,7 @@ type MonitorObject(p:IDataPipe)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
         currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
-     //   printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
+        printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
 
         if (currentSpeed > (0.4 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
@@ -67,7 +67,7 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     
     do  
 
-        criteria.Add(new Criterion(CriterionType.ConstantActivity,6000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
+        criteria.Add(new Criterion(CriterionType.ConstantActivity,3000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
         criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,3*1024*1024)) // for a member to match this criteria it must have moved at least 3MB of data
         
                                                                                     // if the two criteria above hold, we can almost be sure that the pipe is a heavy load pipe and should be throttled up, 
