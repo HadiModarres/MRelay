@@ -43,8 +43,8 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
     member this.removePi(pipe: Pipe,a: int)=
      //   Monitor.Enter lockobj3
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
-        printfn "pipes in dictionary: %i" socketStoreMap.Count
-        printfn "total accepted: %i" totalAcceptedConnections
+     //   printfn "pipes in dictionary: %i" socketStoreMap.Count
+     //   printfn "total accepted: %i" totalAcceptedConnections
 //        for p:Pipe in arr do
 //            p.Test()
        //     printfn "%A" p.GUID
@@ -60,7 +60,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
             let newGuid = Guid.NewGuid().ToByteArray()
             socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
             newPipe.GUID <- newGuid
-            printfn "accepted a new connection" 
+           // printfn "accepted a new connection" 
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
             newPipe.NewSocketReceived(newSocket)
@@ -230,8 +230,10 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
         if x > y then x
         else y
 
-    let throttleSize = 15
+    let throttleSize = 8
     let mutable monitor = null
+    let dynamicMinorBufferSize = 1024*1024
+    let dynamicSegmentSize = 1024
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
@@ -241,7 +243,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     let weakReferences = Generic.List<WeakReference>()
     do  
         if isMajorOnListen = true then
-            monitor <- new Monitor(this,4000)
+            monitor <- new Monitor(this,2000)
             monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
@@ -260,7 +262,10 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             segmentSize            
         member x.getMinorSocketBufferSize()  =
             minorConnectionBufferSize
-        
+        member x.getDynamicSocketBufferSize()=
+            dynamicMinorBufferSize
+        member x.getDynamicSegmentSize()=
+            dynamicSegmentSize
         member x.dataTransferIsAboutToBegin(pipe: IDataPipe)=
             if isMajorOnListen = true && monitor<>null then
                 monitor.Add(pipe)
@@ -271,17 +276,18 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
 //            totPipes <- totPipes - 1
 //            printfn "pipe done, total: %i" totPipes
             Monitor.Enter lockobj
-            //printfn "pipe done on relay fucking called"
+            printfn "Pipe done, total Transfered: %i KB" ((pipe:?>IDataPipe).TotalTransferedData()/1000UL) 
             server.removePi(pipe :?> Pipe,3)
             if monitor <> null then
                 monitor.Remove(pipe :?> IDataPipe)
-            let wr = new WeakReference(pipe)
-            weakReferences.Add(wr)
-            x.printAllWeakReferences()
-            GC.Collect()
+          //  let wr = new WeakReference(pipe)
+         //   weakReferences.Add(wr)
+          //  x.printAllWeakReferences()
+         //   GC.Collect()
             Monitor.Exit lockobj
 
     interface IMonitorDelegate with
         member x.objectHasReachedActivityCriteria(pipe: obj)=
+            printfn "Throttling up connection..."
             let d = pipe :?> Pipe
             d.ThrottleUp(throttleSize)

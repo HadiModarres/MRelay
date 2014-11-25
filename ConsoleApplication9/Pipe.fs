@@ -145,8 +145,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             | :? ObjectDisposedException -> socketStore.Close()
             if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then
                 state <- PipeState.Relaying
-                let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
-                let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+                let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getDynamicSegmentSize(),pipeManager.getDynamicSocketBufferSize())
+                let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getDynamicSegmentSize(),pipeManager.getDynamicSocketBufferSize())
                 splitterChain.AddToFutureMembers(s)
                 mergerChain.AddToFutureMembers(m) 
                 splitterChain.Resume()
@@ -290,8 +290,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
                     socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
                     if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
                         state <- PipeState.Relaying
-                        let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
-                        let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
+                        let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getDynamicSegmentSize(),pipeManager.getDynamicSocketBufferSize())
+                        let m = new StreamMerger(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getDynamicSegmentSize(),pipeManager.getDynamicSocketBufferSize())
                         splitterChain.AddToFutureMembers(s)
                         mergerChain.AddToFutureMembers(m) 
                         splitterChain.Resume()
@@ -319,7 +319,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     member private this.InitRelay()=
         Monitor.Enter lockobj
         reachedRelay <- (reachedRelay+1)
-        printfn "reached relay: %i" reachedRelay
+     //   printfn "reached relay: %i" reachedRelay
         pipeManager.dataTransferIsAboutToBegin(this)
         state <- PipeState.Relaying
         let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())
@@ -337,9 +337,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         socketStore.Close()
     member this.AddPendingSocket(s: Socket)=
         pendingSockets.Add(s)
-    member this.Test()=
-        socketStore.print()
-
+    
 
     interface IDataPipe with
         member x.TotalTransferedData()=

@@ -10,6 +10,8 @@ open System.Threading
 type CriterionType=
 | ConstantActivity
 | TotalTransferExceeds
+| ConstantTransferExceeds
+
 
 type Criterion(ac: CriterionType,value: 'T)=
     member x.CriterionType
@@ -20,6 +22,7 @@ type Criterion(ac: CriterionType,value: 'T)=
 type MonitorObject(p:IDataPipe)=
     let mutable totalTransferOnLastCycle = 0UL
     let mutable longestActiveTransfer = 0 
+    let mutable largestActiveTransfer = 0UL // this is how much data(in bytes) has been transfered actively
     let mutable currentSpeed = (float)0
     let lockobj = new obj()
 
@@ -29,6 +32,8 @@ type MonitorObject(p:IDataPipe)=
     member x.LongestActiveStreak 
         with get() = longestActiveTransfer
 
+    member x.LargestActiveStreak
+        with get() = largestActiveTransfer
     member x.DataPipe 
         with get() = p
     member x.CurrentSpeed
@@ -38,12 +43,14 @@ type MonitorObject(p:IDataPipe)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
         currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
-        printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
-
+     //   printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
+        
         if (currentSpeed > (0.4 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
+            largestActiveTransfer <- largestActiveTransfer+(k-totalTransferOnLastCycle)
         else 
             longestActiveTransfer <- 0
+            largestActiveTransfer <- 0UL
 
         totalTransferOnLastCycle <- k
         Monitor.Exit lockobj
@@ -67,11 +74,19 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     
     do  
 
-        criteria.Add(new Criterion(CriterionType.ConstantActivity,3000))  // for a member to match this criteria it must have had a constant activity for at least 8 seconds
-        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,3*1024*1024)) // for a member to match this criteria it must have moved at least 3MB of data
+        criteria.Add(new Criterion(CriterionType.ConstantActivity,4000))  // for a member to match this criteria it must have had a constant activity for at least 4 seconds
+//        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,1*1024*1024)) // for a member to match this criteria it must have moved at least 1MB of data
+        criteria.Add(new Criterion(CriterionType.ConstantTransferExceeds,1*1024*1024)) // for a member to match this, it must move 1MB of data actively(without stop)
+                                                                                       
+                                                                                       //   so for a pipe to be considered a stream or download pipe it must remain active for at least
+                                                                                       //   4 seconds and move 1MB actively, so for example for a very fast connection that loads website instantly,
+                                                                                       //   it will transfer 1MB very quickly but will stop afterwards and doesn't reach the 4 seconds criterion. 
+                                                                                       //   and for a slow connection that is loading websites slowly, it will remain active for long periods of time but will struggle
+                                                                                       //   to reach the constant transfer of 1MB, so the combination of the two probably detects download and stream pipes well regardless of 
+                                                                                       //   connection speed
+                                                                                      
         
-                                                                                    // if the two criteria above hold, we can almost be sure that the pipe is a heavy load pipe and should be throttled up, 
-                                                                                    // average web page size according to statistics is apparently 1700 KB 
+                                                                                     
 
     member x.Add(objectToBeMonitored: IDataPipe)=
         Monitor.Enter lockobj
@@ -79,14 +94,13 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
         Monitor.Exit lockobj
     member x.Remove(objectToBeRemovedFromBeingMonitored: IDataPipe)=
         Monitor.Enter lockobj
-        printfn "monitor remove called"
         if monitoredObjects.Count>0 then
             for i= monitoredObjects.Count-1 downto 0 do
                 if monitoredObjects.[i].DataPipe = objectToBeRemovedFromBeingMonitored then
                     monitoredObjects.RemoveAt(i)
         Monitor.Exit lockobj
         
-    member x.Start() = // monitor will stop by default after firing delegate method
+    member x.Start() = 
         ignore(timer.Change(0,period))
     member x.Reset() =
         
@@ -122,9 +136,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 let f1 = x.MatchesCriterion monitoredObjects.[i]
                 let pr = new Predicate<Criterion>(f1)
                 if Array.TrueForAll(criteria.ToArray(),pr) then
-                    printfn "firing"
+                    
                     deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
                     monitoredObjects.RemoveAt(i)
+                    highestSpeedSoFar <- 0.0
 
         processCount <- (processCount + 1)
         Monitor.Exit lockobj
@@ -142,6 +157,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 true
             else 
                 false
-        
+        | CriterionType.ConstantTransferExceeds ->
+            if toBeTested.LargestActiveStreak > (uint64) crit.Value then
+                true
+            else
+                false
 
 

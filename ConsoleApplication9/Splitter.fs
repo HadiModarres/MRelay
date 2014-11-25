@@ -82,7 +82,7 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
     
     do
         for sock in minorSockets do
-            printfn "sg"
+         //   printfn "sg"
             minorStreamQueue.Enqueue(new MinorSocket(sock,segmentSize,minorSocketBufferSize,socketManager.SocketExceptionOccured,this.socketFlushed))
 
     member this.ReceiveCallback(result: IAsyncResult)=

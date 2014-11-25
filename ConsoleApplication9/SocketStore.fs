@@ -26,7 +26,7 @@ open System.Collections.Generic
 
 let mutable openPipes = 0
 
-type SocketStore(socketStoreClosedCallback: unit -> unit) as x=
+type SocketStore(socketStoreClosedCallback: unit -> unit) =
     let mutable connectedSockets = 0
     let mutable majorSocket: Socket = null
     let mutable majorReadStatus = true
@@ -125,17 +125,14 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) as x=
 //        | _ -> printfn "empty ack failed" ; x.Close()
     member private x.SyncMajorReadDone() =
         Monitor.Enter lockobj
-        printfn "major read done"
+     //   printfn "major read done"
         if majorReadStatus = true then
             majorReadStatus <- false
 
             try
                 for mset in minorSocketSets.ToArray() do
                     for sock in mset do
-                        printfn ""
                         sock.Shutdown(SocketShutdown.Send)
-                        
-                        printfn ""
 
             with 
             | :? SocketException -> x.Close()
@@ -151,7 +148,7 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) as x=
         Monitor.Exit lockobj
     member private x.SyncMinorReadDone(set: Socket[])=
         Monitor.Enter lockobj
-        printfn "minor read done"
+      //  printfn "minor read done"
         let index = minorSocketSets.IndexOf(set)
         minorSetReadStatus.[index] <- false
         try
@@ -185,7 +182,7 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) as x=
         Monitor.Enter lockobj
         if closed = false then 
             openPipes <- (openPipes-1)
-            printfn "closing pipe!: %i" openPipes
+           // printfn "closing pipe!: %i" openPipes
             for mset in minorSocketSets.ToArray() do
                     for sock in mset do
                         if sock <> null then
@@ -199,8 +196,7 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) as x=
 
         Monitor.Exit lockobj
         
-    member this.print()=
-        printfn "%A" majorSocket.RemoteEndPoint
+   
     
     interface ISocketManager with
         member x.MajorReadDone() =
