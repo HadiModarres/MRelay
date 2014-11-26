@@ -27,12 +27,20 @@ let mutable listenTcpCount = 1
 let mutable forwardAddress = null // required
 let mutable forwardPort = 4000
 let mutable forwardTcpCount = 1
-let mutable segmentSize = 2048
-let mutable minorSocketBufferSize = 2048
+let mutable segmentSize = 1024
+let mutable minorSocketBufferSize = 1024
 let mutable encryptTraffic = false
 //let mutable decryptReceive = false
 let mutable help = false
 let mutable isMajorOnListenSide = -1
+
+
+let mutable dynamicSegmentSize = 1024
+let mutable dynamicMinorBufferSize= 1024*64
+let mutable dynamicConnectionCount= 10
+let mutable dynamicSupport=true
+
+
 let p = new OptionSet()
 
 let getAvilablePort() =
@@ -43,6 +51,21 @@ let getAvilablePort() =
 
     p
 
+let processDynamicSegmentSize(size: int)=
+    printfn "dynamic segment size: %i" size
+    dynamicSegmentSize <- size
+
+let processDynamicMinorBufferSize (size: int)=
+    printfn "dynamic buffer size: %i" size
+    dynamicMinorBufferSize <- size
+
+let processThrottleCount (count : int)=
+    printfn "dynamic tcp grow count: %i" count
+    dynamicConnectionCount <- count
+
+let processDynamic(dynamic: bool)=
+    printfn "dynamic throttling enabled: %b" dynamic
+    dynamicSupport <- dynamic
 let processListenPort(port: int)=
     printfn "listen on port %i" port
     listenOnPort <- port
@@ -122,7 +145,10 @@ let processArgs(args: string[])=
 //    ignore(p.Add("decryptReceive|dr=", "whether relay should decrypt the data received from tcp connections received on listen port (Default: false)",processDecryptReceive))
     ignore(p.Add("help|h|?", "Show this message and exit",processHelp))
     ignore(p.Add("connectToRelay|cr=","Specify whether the other relay resides on listen or connect side of this relay. For example if your browser connects to this relay specify this flag as true and the flag of other relay as false.",processIsMajorOnListenSide))
-
+    ignore(p.Add("dynamic|d=","enable or disable the on-demand throttling(Default: enabled)",processDynamic))
+    ignore(p.Add("dynamicCount|dc=","number of tcp connections to be made when throttling (Default: 10)",processThrottleCount))
+    ignore(p.Add("dynamicSegmentSize|dss=","dynamic segment size, this parameter only affects the tcp connections made when throttling",processDynamicSegmentSize))
+    ignore(p.Add("dynamicBufferSize|dbs=","dynamic buffer size, buffer size for only the minor sockets when throttling",processDynamicMinorBufferSize))
     p.Parse(args)
 
     
@@ -146,7 +172,15 @@ let argValidity()=
     if minorSocketBufferSize % segmentSize <> 0 then
         printfn "Bad configuration. minor socket buffer size should be a multiple of segment size"
         valid <- false
-    
+    if dynamicSegmentSize <=0 || dynamicMinorBufferSize <= 0 then
+        printfn "Bad configuration."
+        valid <- false
+    if dynamicMinorBufferSize % dynamicSegmentSize <> 0 then
+        printfn "Bad configuration. minor socket buffer should be a multiple of segment size"
+        valid <- false
+    if dynamicConnectionCount <=0 then
+        printfn "Bad configuraion, bad number for dynamic connection count"
+        valid <- false
     if listenTcpCount=1 && forwardTcpCount=1 && isMajorOnListenSide= -1 then
         printfn "Missing Flag,specify the other relay direction using the -connectToRelay={true,false} flag"
         valid <- false
@@ -173,22 +207,22 @@ let main argv =
             
         match encryptTraffic with
         | false ->  // multi relay only, no encryption        
-            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,isListenOnMajor)
+            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,isListenOnMajor)
             let s= System.Console.ReadLine()
             ()
         | true when isListenOnMajor=true ->
-//            let freePort = getAvilablePort()
-//            let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
-//            t1.Start()
-//            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,true))
-            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
+            t1.Start()
+            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true))
+//            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
             ()
         | true when isListenOnMajor=false ->
-//            let freePort = getAvilablePort()
-//            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,false)))
-//            t1.Start()
-//            ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
-            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,false)))
+            t1.Start()
+            ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+    //        ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
             ()
         | _ -> ()
 

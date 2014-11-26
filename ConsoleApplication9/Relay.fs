@@ -225,15 +225,13 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
         | :? ObjectDisposedException -> ()
 
 
-type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int, isMajorOnListen: bool ) as this =
+type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int,dynamicSegmentSize:int,dynamicMinorBufferSize:int,dynamic: bool, isMajorOnListen: bool ) as this =
     let max x y = 
         if x > y then x
         else y
 
-    let throttleSize = 8
+    let throttleSize = 11
     let mutable monitor = null
-    let dynamicMinorBufferSize = 1024*1024
-    let dynamicSegmentSize = 1024
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
     let client = new Client(forwardRelayAddress,forwardRelayPort,forwardTcpConnectionCount,isMajorOnListen)
@@ -242,7 +240,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     let lockobj = new obj()
     let weakReferences = Generic.List<WeakReference>()
     do  
-        if isMajorOnListen = true then
+        if isMajorOnListen && dynamic then
             monitor <- new Monitor(this,2000)
             monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
