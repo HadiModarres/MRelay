@@ -52,10 +52,11 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
             while true do    
                 let receivedSocket = listeningSocket.Accept()
                 let s = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
-                s.NoDelay <- true
+                s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+                s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
                 ignore(s.BeginConnect(forwardAddress,forwardPort,connectCallback,(receivedSocket,s)))
         with
-        | e -> printfn "Failed to start encrypted relay,Exception: %A" e.Message
+        | e -> printfn "Failed to start encrypted relay: %A" e.Message
 
     member this.ConnectCallback(result:IAsyncResult) =
         
@@ -69,7 +70,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
             Monitor.Enter obj3
 
             let p = pipe :?> EncryptedPipe
-            if completedTask.Status <> TaskStatus.RanToCompletion then
+            if completedTask.Exception <> null then
                 p.Close()
             else
                 ignore(new StreamDecryptor(p))
@@ -84,7 +85,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let publicKeyReceived (completedTask: Task<string>) ( pipe: obj) =
             Monitor.Enter obj2
             let p = pipe :?> EncryptedPipe
-            if completedTask.Status <> TaskStatus.RanToCompletion then
+            if completedTask.Exception <> null then
                  p.Close()
             else
                 try
@@ -103,7 +104,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
             
             Monitor.Enter obj5
             let p = pipe :?> EncryptedPipe
-            if completedTask.Status <> TaskStatus.RanToCompletion then
+            if completedTask.Exception <> null then
                 p.Close()
             else
                 try
@@ -127,7 +128,7 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let publicKeySent (completedTask: Task) ( pipe: obj) =
             Monitor.Enter obj4
             let p = pipe :?> EncryptedPipe
-            if completedTask.Status <> TaskStatus.RanToCompletion then
+            if completedTask.Exception <> null then
                 p.Close()
             else
                 try
@@ -140,15 +141,17 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
         let at2 = new Action<Task,obj>(publicKeySent)
 
         let obj1 = new obj()
-        do
+      //  do
       
         Monitor.Enter obj1
         try 
             newSocket.EndConnect(result)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
             let receiveStream = new NetworkStream(receivedSocket)
             let sendStream = new NetworkStream(newSocket)
             let newPipe = new EncryptedPipe(receiveStream,sendStream,receivedSocket,newSocket,encryptReceive)
-            totalPipes <- (totalPipes + 1)
+       //     totalPipes <- (totalPipes + 1)
             try
                 if encryptReceive = true then 
                     aes.KeySize <- SymmetricKeySize
@@ -167,6 +170,6 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
                       
                 
         with
-        | e -> printfn "%A" e   
+        | e -> newSocket.Close(); receivedSocket.Close()
         Monitor.Exit obj1
     

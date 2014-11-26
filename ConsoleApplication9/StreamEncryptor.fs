@@ -33,18 +33,22 @@ type StreamEncryptor(pipe: EncryptedPipe) as this =
     let at3  = new Action<Task>(this.bytesSent)
     let at = new Action<Task>(this.closeSockets)
     let at2 = new Action<Task<int>>(this.bytesRead)
-
+    
+        
     do
       //  printfn "initiating streamencryptor"
+        totalPipes <- totalPipes+1
+        printfn "total opened encrypted pipes: %i" totalPipes
         try
             ignore(pipe.GetStreamThatNeedsEncryption().ReadAsync(receiveBuffer,0,receiveBuffer.GetLength(0)).ContinueWith(at2))
         with
         | e-> pipe.Close()
     member this.bytesRead(completedTask: Task<int>)=
-        if completedTask.Status <> TaskStatus.RanToCompletion then
+        if completedTask.Exception <> null then
             pipe.Close()    
         else
             if completedTask.Result = 0 then
+                printfn "major done"
                 this.closeSockets(completedTask)
             else
                 let toBeEncrypted = Array.create completedTask.Result (new Byte())
@@ -57,10 +61,12 @@ type StreamEncryptor(pipe: EncryptedPipe) as this =
     member this.closeSockets(completedTask: Task)=
         if (completedTask.Exception <> null) then
             printfn "exception occured: %A" completedTask.Exception.Message
-        pipe.ShutdownEncryptDirection()
+            pipe.Close()
+        else
+            pipe.ShutdownEncryptDirection()
 
     member this.bytesSent(completedTask: Task)=
-        if completedTask.Status <> TaskStatus.RanToCompletion then
+        if completedTask.Exception<>null then
             pipe.Close()
         else
             try

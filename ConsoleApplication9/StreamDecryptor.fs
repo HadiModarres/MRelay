@@ -38,10 +38,12 @@ type StreamDecryptor(pipe: EncryptedPipe) as this =
         with
         | e-> pipe.Close()
     member this.bytesRead(completedTask: Task<int>)=
-        if completedTask.Status <> TaskStatus.RanToCompletion then
+        if completedTask.Exception <> null then
+        
             pipe.Close()    
         else
             if completedTask.Result = 0 then
+                printfn "minor done"
                 this.closeSockets(completedTask)
             else
                 let toBeDecrypted = Array.create completedTask.Result (new Byte())
@@ -54,10 +56,12 @@ type StreamDecryptor(pipe: EncryptedPipe) as this =
     member this.closeSockets(completedTask: Task)=
         if (completedTask.Exception <> null) then
             printfn "exception occured: %A" completedTask.Exception.Message
-        pipe.ShutdownDecryptDirection()
+            pipe.Close()
+        else
+            pipe.ShutdownDecryptDirection()
 
     member this.bytesSent(completedTask: Task)=
-        if completedTask.Status <> TaskStatus.RanToCompletion then
+        if completedTask.Exception <> null then
             pipe.Close()
         else
             try

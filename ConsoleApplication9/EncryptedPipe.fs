@@ -17,27 +17,33 @@ open System.Threading
 open System.Security.Cryptography
 
 let mutable totalPipes = 0
+let mutable closedPipes= 0
 type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket1: Socket, socket2: Socket,encryptReceive: bool) = 
     let mutable dataDone=0
     let lockobj = new obj()
 //    let mutable rsa = new RSACryptoServiceProvider(new CspParameters())
-    let keyIV = Array.create 256 (new Byte())
+    let keyIV = Array.create 256 (0uy)
 //    let mutable aes = AesManaged.Create()
     let mutable key = null
     let mutable iv = null
-   
+    let mutable closed = false
+       
 
     
-    member x.Close() =
-       
-            
+    member x.Close() =       
+        if closed = false then
+            closed <- true
+            closedPipes <- closedPipes+1
+            printfn "total closed encrypted pipes: %i" closedPipes
             socket1.Close()
             socket2.Close()
-               
+            receiveStream.Dispose()
+            sendStream.Dispose()               
     member x.DataDone() =
             Monitor.Enter lockobj
             dataDone <- dataDone+1
-            if (dataDone = 2) = true then
+            if dataDone = 2 then
+                printfn "both directions done"
                 x.Close()
             Monitor.Exit lockobj
 
@@ -54,20 +60,29 @@ type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket
             receiveStream
 
     member x.ShutdownEncryptDirection() =
+        printfn "shutting down encrypt direction"
         if encryptReceive = true then
-            socket1.Shutdown(SocketShutdown.Receive)
+         //   socket1.Shutdown(SocketShutdown.Receive)
             socket2.Shutdown(SocketShutdown.Send)
         else
-            socket2.Shutdown(SocketShutdown.Receive)
+            printfn "here"
+            receiveStream.Flush()
+        //    socket2.Shutdown(SocketShutdown.Receive)
             socket1.Shutdown(SocketShutdown.Send)
+            
+            printfn "encrypt shutdown complete"
         x.DataDone()
 
     member x.ShutdownDecryptDirection() =
+        printfn "shutting down decrypt direction"
+
         if encryptReceive = true then
-            socket2.Shutdown(SocketShutdown.Receive)
+            printfn "enc rec"
+          //  socket2.Shutdown(SocketShutdown.Receive)
             socket1.Shutdown(SocketShutdown.Send)
         else
-            socket1.Shutdown(SocketShutdown.Receive)
+            printfn "!enc rec"
+        //    socket1.Shutdown(SocketShutdown.Receive)
             socket2.Shutdown(SocketShutdown.Send)
         x.DataDone()
 

@@ -43,7 +43,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
     member this.removePi(pipe: Pipe,a: int)=
      //   Monitor.Enter lockobj3
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
-     //   printfn "pipes in dictionary: %i" socketStoreMap.Count
+        printfn "pipes in dictionary: %i" socketStoreMap.Count
      //   printfn "total accepted: %i" totalAcceptedConnections
 //        for p:Pipe in arr do
 //            p.Test()
@@ -276,7 +276,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
 //            totPipes <- totPipes - 1
 //            printfn "pipe done, total: %i" totPipes
             Monitor.Enter lockobj
-            printfn "Pipe done, total Transfered: %i KB" ((pipe:?>IDataPipe).TotalTransferedData()/1000UL) 
+      //      printfn "Pipe done, total Transfered: %i KB" ((pipe:?>IDataPipe).TotalTransferedData()/1000UL) 
             server.removePi(pipe :?> Pipe,3)
             if monitor <> null then
                 monitor.Remove(pipe :?> IDataPipe)
