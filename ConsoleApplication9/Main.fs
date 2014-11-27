@@ -48,7 +48,7 @@ let getAvilablePort() =
     l.Start()
     let p = (l.LocalEndpoint :?> IPEndPoint).Port
     l.Stop()
-
+    
     p
 
 let processDynamicSegmentSize(size: int)=
@@ -95,15 +95,20 @@ let processIsMajorOnListenSide(majorListen: bool)=
 let processHelp(stf: string)=
     help <- true
     Console.WriteLine ("")
-    Console.WriteLine ("MRelay Help");
+    Console.WriteLine (" MRelay Help");
     Console.WriteLine ("")
-    Console.WriteLine ("Usage: [mono] MRelay.exe [OPTIONS]+ -forwardAddress= -connectToRelay={true,false}");
+    Console.WriteLine (" Usage: [mono] MRelay.exe [OPTIONS]+ -relayToAddress= -relayToPort= -connectToRelay={true,false}");
     Console.WriteLine ("");
-    Console.WriteLine ("OPTIONS:");
+    Console.WriteLine (" OPTIONS:");
     p.WriteOptionDescriptions (Console.Out);    
-    Console.WriteLine("\n Examples:\n")
+    Console.WriteLine("\n Example:\n")
     Console.Title <- "MRelay"
-    
+    Console.WriteLine("   When you want to use MRelay to accelerate and encrypt the traffic between your PC and a Socks proxy listening on port 8080 on a VPS running Debian at 99.88.77.66 :".PadRight(10,'-'))
+    Console.WriteLine("   Run: \"MRelay.exe -listenOnPort=4500 -relayToAddress=99.88.77.66 -relayToPort=4500 -connectToRelay=true\" on your PC and update your web browser Socks proxy settings to 127.0.0.1:4500")
+    Console.WriteLine("   And run: \"mono MRelay.exe -listenOnPort=4500 -relayToAddress=127.0.0.1 -relayToPort=8080 -connectToRelay=false\" on Debian box")
+    Console.WriteLine("\n   Add -encrypt=true if you need encryption")
+    Console.WriteLine("")
+    Console.WriteLine(" Please note that when specifying other settings(if needed) such as segment size, they must match between relays or the stream will be courrupted")
 let processArgs(args: string[])=
     
     ignore(p.Add("listenOnPort|lp=", "The {PORT} to listen on (Default: 4000)",processListenPort))
@@ -111,8 +116,8 @@ let processArgs(args: string[])=
     ignore(p.Add("relayToAddress|ra=", "The {ADDRESS} to relay incoming traffic to (Required)",processForwardAddress))
     ignore(p.Add("relayToPort|rp=", "The {PORT} to relay incoming traffic to (Default: 4000)",processForwardPort))
     ignore(p.Add("relayTcpCount|rtc=", "The {COUNT} of outgoing tcp connections (Default: 1)",processForwardTcpCount))
-    ignore(p.Add("segmentSize|ss=", "The {SIZE} in bytes of each segment when dividing stream to segments (Default: 10000)",processSegmentSize))
-    ignore(p.Add("socketBufferSize|sbs=", "The {SIZE} in bytes of buffer for each minor tcp socket (Default: 20000)",processMinorSocketBufferSize))
+    ignore(p.Add("segmentSize|ss=", "The {SIZE} in bytes of each segment when dividing stream to segments (Default: 1024)",processSegmentSize))
+    ignore(p.Add("socketBufferSize|sbs=", "The {SIZE} in bytes of buffer for each minor tcp socket (Default: 1024)",processMinorSocketBufferSize))
     ignore(p.Add("encrypt|e=", "whether relay should encrypt the data (Default: false)",processEncrypt))
     ignore(p.Add("help|h|?", "Show this message and exit",processHelp))
     ignore(p.Add("connectToRelay|cr=","Specify whether the other relay resides on listen or connect side of this relay.",processIsMajorOnListenSide))
@@ -198,7 +203,7 @@ let main argv =
         //        ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
                 ()
             | _ -> ()
-        else
+        else if (help = false) then
             Console.WriteLine("Type \"MRelay.exe -h\" for help.")
      with
      | _ as e-> printfn "%A" e.Message;Console.WriteLine("Type \"MRelay.exe -h\" for help.")                      
