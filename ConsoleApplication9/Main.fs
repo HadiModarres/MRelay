@@ -1,14 +1,16 @@
-﻿///   2014 Sadegh Modarres   modarres.zadeh@gmail.com
-/// 
-///  This library is free software; you can redistribute it and/or
-///  modify it under the terms of the GNU Lesser General Public
-///  License as published by the Free Software Foundation; either
-///  version 2.1 of the License, or (at your option) any later version.
-/// 
-///  This library is distributed in the hope that it will be useful,
-///  but WITHOUT ANY WARRANTY; without even the implied warranty of
-///  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-///  Lesser General Public License for more details.
+﻿// Copyright 2014 Hadi Modarres
+// modarres.zadeh@gmail.com
+//
+// This file is part of MRelay.
+// MRelay is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MRelay is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 module RelayTest
 
 open Relay
@@ -171,41 +173,43 @@ let argValidity()=
 [<EntryPoint>]
    
 let main argv = 
-    try
-        ignore(processArgs(argv))
+  //  try
+    ignore(processArgs(argv))
      
-        if (help =false) && (argValidity() = true) then
-            let isListenOnMajor = 
-                match isMajorOnListenSide with
-                | -1 when forwardTcpCount=1 -> false
-                | -1 when listenTcpCount=1 -> true
-                | 0 -> true
-                | 1 -> false
-                |_ -> false
+    if (help =false) && (argValidity() = true) then
+        let isListenOnMajor = 
+            match isMajorOnListenSide with
+            | -1 when forwardTcpCount=1 -> false
+            | -1 when listenTcpCount=1 -> true
+            | 0 -> true
+            | 1 -> false
+            |_ -> false
             
-            match encryptTraffic with
-            | false ->  // multi relay only, no encryption        
-                let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,isListenOnMajor)
-                let s= System.Console.ReadLine()
-                ()
-            | true when isListenOnMajor=true ->
-                let freePort = getAvilablePort()
-                let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
-                t1.Start()
-                ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true))
-    //            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
-                ()
-            | true when isListenOnMajor=false ->
-                let freePort = getAvilablePort()
-                let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,false)))
-                t1.Start()
-                ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
-        //        ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
-                ()
-            | _ -> ()
-        else if (help = false) then
-            Console.WriteLine("Type \"MRelay.exe -h\" for help.")
-     with
-     | _ as e-> printfn "%A" e.Message;Console.WriteLine("Type \"MRelay.exe -h\" for help.")                      
+        match encryptTraffic with
+        | false ->  // multi relay only, no encryption        
+            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,isListenOnMajor)
+            let s= System.Console.ReadLine()
+            ()
+        | true when isListenOnMajor=true ->
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
+            t1.Start()
+            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true))
+            let s= System.Console.ReadLine()
+
+//            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
+            ()
+        | true when isListenOnMajor=false ->
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,false)))
+            t1.Start()
+            ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+    //        ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+            ()
+        | _ -> ()
+    else if (help = false) then
+        Console.WriteLine("Type \"MRelay.exe -h\" for help.")
+//     with
+//     | _ as e-> printfn "%A" e.Message;Console.WriteLine("Type \"MRelay.exe -h\" for help.")  ;ignore(Console.Read()                  )
     0
 

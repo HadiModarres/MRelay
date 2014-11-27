@@ -65,7 +65,7 @@
     <Compile Include="EncryptedRelayTest.fs" />
     <Compile Include="TestTypes.fs" />
     <Compile Include="MonitorTest.fs" />
-    <Compile Include="GCTest.fs" />
+    <None Include="MRelayTests.licenseheader" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConsoleApplication9\MRelay.fsproj">
