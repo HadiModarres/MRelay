@@ -42,8 +42,8 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
 
     do
         socketStore.AddMinorSet(minorCount)
-        totPipes <- totPipes+1
-        printfn "tot pipes: %i" totPipes
+//        totPipes <- totPipes+1
+//        printfn "tot pipes: %i" totPipes
 
 //    do 
 //        ignore(timer.Change(6000,Timeout.Infinite))
@@ -321,7 +321,6 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     member private this.InitRelay()=
         Monitor.Enter lockobj
         reachedRelay <- (reachedRelay+1)
-        printfn "reached relay: %i" reachedRelay
         pipeManager.dataTransferIsAboutToBegin(this)
         state <- PipeState.Relaying
         let s = new StreamSplitter(socketStore,socketStore.MajorSocket,socketStore.GetLastMinorSet(),pipeManager.getSegmentSize(),pipeManager.getMinorSocketBufferSize())

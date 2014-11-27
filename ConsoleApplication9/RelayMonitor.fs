@@ -43,9 +43,8 @@ type MonitorObject(p:IDataPipe)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
         currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
-     //   printfn "current speed: %f kilo bytes per second, interval millis: %i, total transfered: %i, last cycle transfered: %i" currentSpeed intervalMillis (p.TotalTransferedData()) totalTransferOnLastCycle 
         
-        if (currentSpeed > (0.4 * (float)highestSpeed)) then
+        if (currentSpeed > (0.2 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
             largestActiveTransfer <- largestActiveTransfer+(k-totalTransferOnLastCycle)
         else 

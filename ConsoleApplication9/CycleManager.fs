@@ -51,7 +51,6 @@ type CycleManager() as x=
     member x.AddToChain(cycler: ICycle)=
         ignore(chain.Add(cycler))
         cycler.NoMoreCyclesCallback <- x.NoMoreCyclesLeft
-        //printfn "adding to chain at %i" cycleNumber
  
     member x.NoMoreCyclesLeft(cycler: ICycle)=
         ignore(chain.Remove(cycler))
@@ -114,8 +113,6 @@ type CycleManager() as x=
             
             if paused=true then    
                 x.BeforeCycle()
-        else
-            printfn "can't resume, chain empty"
         Monitor.Exit lockobj
 
     member x.ResumeOneCycle()=

@@ -36,7 +36,6 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
     let connectCallback = new AsyncCallback(this.ConnectCallback)
 
     do
-   //     printfn "initiating encrypted relay"
         this.StartListening()
         
     member this.StartListening() =
@@ -114,7 +113,6 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
                     Array.blit p.KeyIV 128 iv 0 128
                     p.Key <- rsa.Decrypt(key,false)
                     p.Iv <- rsa.Decrypt(iv,false)
-                  //  printfn "startingggg %A %A"
                     ignore(new StreamDecryptor(p))
 
                     ignore(new StreamEncryptor(p))

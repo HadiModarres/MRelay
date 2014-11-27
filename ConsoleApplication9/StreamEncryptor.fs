@@ -38,7 +38,6 @@ type StreamEncryptor(pipe: EncryptedPipe) as this =
     do
       //  printfn "initiating streamencryptor"
         totalPipes <- totalPipes+1
-        printfn "total opened encrypted pipes: %i" totalPipes
         try
             ignore(pipe.GetStreamThatNeedsEncryption().ReadAsync(receiveBuffer,0,receiveBuffer.GetLength(0)).ContinueWith(at2))
         with
@@ -48,7 +47,6 @@ type StreamEncryptor(pipe: EncryptedPipe) as this =
             pipe.Close()    
         else
             if completedTask.Result = 0 then
-                printfn "major done"
                 this.closeSockets(completedTask)
             else
                 let toBeEncrypted = Array.create completedTask.Result (new Byte())
@@ -60,7 +58,6 @@ type StreamEncryptor(pipe: EncryptedPipe) as this =
                 | e-> pipe.Close()
     member this.closeSockets(completedTask: Task)=
         if (completedTask.Exception <> null) then
-            printfn "exception occured: %A" completedTask.Exception.Message
             pipe.Close()
         else
             pipe.ShutdownEncryptDirection()

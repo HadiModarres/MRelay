@@ -43,7 +43,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
     member this.removePi(pipe: Pipe,a: int)=
      //   Monitor.Enter lockobj3
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
-        printfn "pipes in dictionary: %i" socketStoreMap.Count
+//        printfn "pipes in dictionary: %i" socketStoreMap.Count
      //   printfn "total accepted: %i" totalAcceptedConnections
 //        for p:Pipe in arr do
 //            p.Test()
@@ -286,6 +286,6 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
 
     interface IMonitorDelegate with
         member x.objectHasReachedActivityCriteria(pipe: obj)=
-            printfn "Throttling up connection..."
+            printfn "Acceleration in progress..."
             let d = pipe :?> Pipe
             d.ThrottleUp(throttleSize)
