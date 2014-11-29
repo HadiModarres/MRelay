@@ -16,7 +16,18 @@ Then set your browser proxy address to: 127.0.0.1:6000
 ### Encryption
 MRelay can optionally encrypt the data using a fast and computationally light-weight stream encryption named Phelix.
 Please note that the encryption is used mainly as a way to bypass content-sensitive filtering and prevention of wire-tapping and doesn't have a defense mechanism against man-in-the-middle attacks. So use it only when you know nobody is intercepting your connection.
-Every single tcp connection is encrypted using a different set of key and initialization vector.
+
+### Requirements
+Windows Vista or later.
+Mono version 3.10.0 or later (if running on Linux)
+
+
+#### [MRelay Demo](http://youtu.be/o1wa1f5FjCE)
+
+
+
+##### Author
+Hadi Modarres
 
 
 
@@ -32,4 +43,8 @@ Every single tcp connection is encrypted using a different set of key and initia
 
 
 
-##Heading2
+
+
+
+
+
