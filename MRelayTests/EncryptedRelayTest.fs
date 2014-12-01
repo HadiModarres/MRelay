@@ -59,8 +59,8 @@ type public EncryptedRelayTest() =
      member x.SetupEncryptDecryptRelays(port: int, forwardPort: int)=
          let key = Text.Encoding.ASCII.GetBytes(key)
          let iv = Text.Encoding.ASCII.GetBytes(iv)
-         let t1 = new Thread( fun () -> ignore(new EncryptedRelay(port,Dns.GetHostAddresses("127.0.0.1").[0],4500,true)))
-         let t2 = new Thread( fun () -> ignore(new EncryptedRelay(4500,Dns.GetHostAddresses("127.0.0.1").[0],forwardPort,false)))
+         let t1 = new Thread( fun () -> ignore(new EncryptedRelay(port,Dns.GetHostAddresses("127.0.0.1").[0],4600,true)))
+         let t2 = new Thread( fun () -> ignore(new EncryptedRelay(4600,Dns.GetHostAddresses("127.0.0.1").[0],forwardPort,false)))
          t1.Start()
          t2.Start()
 
