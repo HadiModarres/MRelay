@@ -171,9 +171,10 @@ let argValidity()=
 
     valid
 
-[<EntryPoint>]
-   
-let main argv = 
+
+
+let mainsd argv = 
+    let b = Console.Read()
   //  try
     ignore(processArgs(argv))
      
@@ -194,8 +195,14 @@ let main argv =
         | true when isListenOnMajor=true ->
             let freePort = getAvilablePort()
             let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
+            
+            
+            let t2 = new Thread(fun() -> ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true)))
+            t1.IsBackground <- false
+            t2.IsBackground <- false
             t1.Start()
-            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true))
+            t2.Start()
+
             let s= System.Console.ReadLine()
 
 //            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))

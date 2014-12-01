@@ -11,6 +11,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
 module Relay
 
 open System
@@ -70,40 +71,40 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
 
     member this.StartListening()=
         if  isMajorOnListen = true then
-            this.SingleListen2()
+            this.SingleListen()
             
         else
             this.MultiListen2() 
         
-//    member this.SingleAccept(e: obj)=
-//        this.SingleListen()
-//
-//        let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
-//        let newGuid = Guid.NewGuid().ToByteArray()
-//        socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
-//        newPipe.GUID <- newGuid
-//        let sc = e :?> SocketAsyncEventArgs
-//        
-//        let newSocket = sc.AcceptSocket
-//        printfn "%A" sc.SocketError
-//
-//        printfn "accepted a new connection" 
-//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
-//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-//        newPipe.NewSocketReceived(newSocket)
-//    
-//    member this.SingleListen()=
-//        let sc = new SocketAsyncEventArgs()
-//        try
-//            let bo = listeningSocket.AcceptAsync(sc)
-//            if bo = true then
-//                sc.Completed.Add(this.SingleAccept)
-//                
-//            
-//            else
-//                this.SingleAccept(sc)               
-//        with
-//        | _ as e-> printfn "accept exception: %A" e.Message 
+    member this.SingleAccept(e: obj)=
+        this.SingleListen()
+
+        let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
+        let newGuid = Guid.NewGuid().ToByteArray()
+        socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
+        newPipe.GUID <- newGuid
+        let sc = e :?> SocketAsyncEventArgs
+        
+        let newSocket = sc.AcceptSocket
+        printfn "%A" sc.SocketError
+
+        printfn "accepted a new connection" 
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+        newPipe.NewSocketReceived(newSocket)
+    
+    member this.SingleListen()=
+        let sc = new SocketAsyncEventArgs()
+        try
+            let bo = listeningSocket.AcceptAsync(sc)
+            if bo = true then
+                sc.Completed.Add(this.SingleAccept)
+                
+            
+            else
+                this.SingleAccept(sc)               
+        with
+        | _ as e-> printfn "accept exception: %A" e.Message 
              
     member this.MultiAccept(e: obj)=
         this.MultiListen()
@@ -249,7 +250,8 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
             server.StartListening()
         else
             printfn "multi to multi relay not supported yet, and can be easily accomplished with two relays"
-
+    member x.Monitor
+        with get() = monitor
     member x.printAllWeakReferences()=  
         for s in weakReferences.ToArray() do
             printfn "is garbage collected: %b" (not s.IsAlive)

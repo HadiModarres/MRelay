@@ -19,6 +19,7 @@ open IMonitorDelegate
 open System.Collections.Generic
 open System.Collections
 open System.Threading
+open System.Windows.Forms
 
 type CriterionType=
 | ConstantActivity
@@ -37,8 +38,13 @@ type MonitorObject(p:IDataPipe)=
     let mutable longestActiveTransfer = 0 
     let mutable largestActiveTransfer = 0UL // this is how much data(in bytes) has been transfered actively
     let mutable currentSpeed = (float)0
+    let speedHist = new List<float>()
     let lockobj = new obj()
-
+    let mutable start = 0
+   
+    member x.Start
+        with get() = start
+        and set(s: int)= start<- s
     member x.TotalDataOnLast 
         with get() = totalTransferOnLastCycle
         
@@ -51,12 +57,15 @@ type MonitorObject(p:IDataPipe)=
         with get() = p
     member x.CurrentSpeed
         with get() = currentSpeed
+    
+    member x.SpeedHistory
+        with get() = speedHist.ToArray()
         
     member x.Update(highestSpeed: float,intervalMillis: int)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
         currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
-        
+        speedHist.Add(currentSpeed)
         if (currentSpeed > (0.2 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
             largestActiveTransfer <- largestActiveTransfer+(k-totalTransferOnLastCycle)
@@ -102,7 +111,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
 
     member x.Add(objectToBeMonitored: IDataPipe)=
         Monitor.Enter lockobj
-        monitoredObjects.Add(new MonitorObject(objectToBeMonitored))
+        let om = new MonitorObject(objectToBeMonitored)
+        om.Start <- processCount
+        monitoredObjects.Add(om)
+        
         Monitor.Exit lockobj
     member x.Remove(objectToBeRemovedFromBeingMonitored: IDataPipe)=
         Monitor.Enter lockobj
@@ -148,10 +160,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 let f1 = x.MatchesCriterion monitoredObjects.[i]
                 let pr = new Predicate<Criterion>(f1)
                 if Array.TrueForAll(criteria.ToArray(),pr) then
-                    
-                    deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
-                    monitoredObjects.RemoveAt(i)
-                    highestSpeedSoFar <- 0.0
+                        ()
+//                    deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
+//                    monitoredObjects.RemoveAt(i)
+//                    highestSpeedSoFar <- 0.0
 
         processCount <- (processCount + 1)
         Monitor.Exit lockobj
@@ -175,4 +187,6 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
             else
                 false
 
-
+   
+    member x.GetSpeedValues()=
+        monitoredObjects
