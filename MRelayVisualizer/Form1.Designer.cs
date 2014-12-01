@@ -46,13 +46,13 @@ namespace MRelayVisualizer
         private void initR()
         {
             Console.WriteLine("tr");
-            testRelay = new Relay.Relay(8000, 1, Dns.GetHostAddresses("149.210.142.87")[0], 4501, 1, 1024, 1024, 1024, 1024 * 64, true, true);
+            testRelay = new Relay.Relay(9002, 1, Dns.GetHostAddresses("149.210.142.87")[0], 4501, 1, 1024, 1024, 1024, 1024 * 64, true, true);
             
         }
         private void initE()
         {
            
-            eRelay = new EncryptedRelay.EncryptedRelay(4000,Dns.GetHostAddresses("127.0.0.1")[0],8000,true);
+            eRelay = new EncryptedRelay.EncryptedRelay(4000,Dns.GetHostAddresses("127.0.0.1")[0],9002,true);
             Console.WriteLine("er");
         }
         
@@ -60,8 +60,6 @@ namespace MRelayVisualizer
         private void InitializeComponent()
 
         {
-
-           
             this.components = new System.ComponentModel.Container();
             this.zedGraphControl1 = new ZedGraph.ZedGraphControl();
             this.SuspendLayout();
@@ -77,15 +75,14 @@ namespace MRelayVisualizer
             this.zedGraphControl1.ScrollMinX = 0D;
             this.zedGraphControl1.ScrollMinY = 0D;
             this.zedGraphControl1.ScrollMinY2 = 0D;
-            this.zedGraphControl1.Size = new System.Drawing.Size(688, 397);
+            this.zedGraphControl1.Size = new System.Drawing.Size(940, 634);
             this.zedGraphControl1.TabIndex = 0;
-            
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(682, 393);
+            this.ClientSize = new System.Drawing.Size(935, 629);
             this.Controls.Add(this.zedGraphControl1);
             this.Name = "Form1";
             this.Text = "Form1";
@@ -93,14 +90,14 @@ namespace MRelayVisualizer
 
         }
         private void updateGraph(Object timerObject,EventArgs eventArgs)
-        {
+        {   
+            Random rk= new Random();
             if ((testRelay== null)) {
 
                 return;
             }
             if (testRelay.Monitor == null)
                 return;
-            Console.WriteLine("updating");
             ZedGraphControl zgc = zedGraphControl1;
             List<RelayMonitor.MonitorObject> l1 = testRelay.Monitor.GetSpeedValues();
             GraphPane myPane = zgc.GraphPane;
@@ -108,8 +105,9 @@ namespace MRelayVisualizer
             for (int i=0;i<l1.Count;i++)
             {
                 PointPairList list = getListForMonitorObject(l1[i]);
+                
                 myPane.AddCurve("",
-                  list, Color.Black, SymbolType.Diamond);
+                  list, Color.DarkRed, SymbolType.Diamond);
             }
 
             zgc.AxisChange();
@@ -119,7 +117,14 @@ namespace MRelayVisualizer
         private PointPairList getListForMonitorObject(RelayMonitor.MonitorObject mo)
         {
             PointPairList list = new PointPairList();
-            for (int i=0;i<mo.SpeedHistory.Length;i++)
+            int cou = 0;
+            if (mo.SpeedHistory.Length>40) {
+                cou = 40;
+            }else{
+                cou = mo.SpeedHistory.Length;
+            }
+
+            for (int i=mo.SpeedHistory.Length-1;i>(mo.SpeedHistory.Length-cou);i--)
             {
                 list.Add(i+mo.Start,mo.SpeedHistory[i]);
             }

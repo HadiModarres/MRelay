@@ -244,7 +244,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     let weakReferences = Generic.List<WeakReference>()
     do  
         if isMajorOnListen && dynamic then
-            monitor <- new Monitor(this,2000)
+            monitor <- new Monitor(this,3000)
             monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()

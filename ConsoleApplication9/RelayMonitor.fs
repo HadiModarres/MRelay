@@ -41,7 +41,7 @@ type MonitorObject(p:IDataPipe)=
     let speedHist = new List<float>()
     let lockobj = new obj()
     let mutable start = 0
-   
+    let speedWeight = 0.2 ;
     member x.Start
         with get() = start
         and set(s: int)= start<- s
@@ -64,7 +64,7 @@ type MonitorObject(p:IDataPipe)=
     member x.Update(highestSpeed: float,intervalMillis: int)=
         Monitor.Enter lockobj
         let k = p.TotalTransferedData()
-        currentSpeed <- ((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis
+        currentSpeed <- (((float) (k - totalTransferOnLastCycle)) / (float)intervalMillis)*0.6+0.4*currentSpeed
         speedHist.Add(currentSpeed)
         if (currentSpeed > (0.2 * (float)highestSpeed)) then
             longestActiveTransfer <- (longestActiveTransfer + 1)
@@ -95,9 +95,9 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     
     do  
 
-        criteria.Add(new Criterion(CriterionType.ConstantActivity,4000))  // for a member to match this criteria it must have had a constant activity for at least 4 seconds
+        criteria.Add(new Criterion(CriterionType.ConstantActivity,3000))  // for a member to match this criteria it must have had a constant activity for at least 4 seconds
 //        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,1*1024*1024)) // for a member to match this criteria it must have moved at least 1MB of data
-        criteria.Add(new Criterion(CriterionType.ConstantTransferExceeds,1024*1024)) // for a member to match this, it must move 1MB of data actively(without stop)
+        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,700)) // for a member to match this, it must move 1MB of data actively(without stop)
                                                                                        
                                                                                        //   so for a pipe to be considered a stream or download pipe it must remain active for at least
                                                                                        //   4 seconds and move 1MB actively, so for example for a very fast connection that loads website instantly,
@@ -160,10 +160,10 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
                 let f1 = x.MatchesCriterion monitoredObjects.[i]
                 let pr = new Predicate<Criterion>(f1)
                 if Array.TrueForAll(criteria.ToArray(),pr) then
-                        ()
-//                    deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
-//                    monitoredObjects.RemoveAt(i)
-//                    highestSpeedSoFar <- 0.0
+                        
+                    deleg.objectHasReachedActivityCriteria(monitoredObjects.[i].DataPipe)
+                    monitoredObjects.RemoveAt(i)
+                    highestSpeedSoFar <- 0.0
 
         processCount <- (processCount + 1)
         Monitor.Exit lockobj

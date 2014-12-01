@@ -29,7 +29,7 @@ namespace MRelayVisualizer
             timer = new System.Windows.Forms.Timer();
             timer.Tick += new EventHandler(updateGraph);
             
-            timer.Interval = 2000;
+            timer.Interval = 200;
             timer.Start();
 
         //    this.CreateGraph(zedGraphControl1);
