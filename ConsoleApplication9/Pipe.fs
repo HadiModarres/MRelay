@@ -236,7 +236,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             try
                 let received = socket.EndReceive(result)
                 if received <> 1 then
-                    raise(new Exception("couldn't read index"))
+                    socketStore.Close()
                 else
                     socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
                     if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 
@@ -254,7 +254,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             try
                 let readCount = socket.EndReceive(result)
                 if readCount <> pa.GetLength(0) then
-                    printfn "couldn't read data"
+                    socketStore.Close()
                 else
                     throttleUpSize <- (int) pa.[1]
                     socketStore.AddMinorSet(throttleUpSize)
@@ -280,7 +280,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             try
                 let readCount = socket.EndReceive(result)
                 if readCount <> pa.GetLength(0) then
-                    printfn "couldn't read sync info"
+                    socketStore.Close()
                 else
                     let targetMergerCycleNumber = BitConverter.ToInt32(pa,0)
                     mergerChain.AddToFutureMembers(targetMergerCycleNumber)
@@ -300,7 +300,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
             try
                 let received = socket.EndReceive(result)
                 if received <> 1 then
-                    raise(new Exception("couldn't read index"))
+                    socketStore.Close()
                 else
                     socketStore.AddMinorSocket(socket,((int)(socketIndex.[0])))
                     if socketStore.ConnectedSockets = socketStore.GetLastMinorSet().GetLength(0) then // we have received enough connections, now try to connect 

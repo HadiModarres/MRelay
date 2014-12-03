@@ -148,7 +148,8 @@ type StreamMerger(socketManager: ISocketManager,majorSock:Socket,minorSock: Sock
             chain.ResumeOneCycle()
     member this.MergerDone()=
         
-        socketManager.MinorReadDone(minorSock)
+      //  socketManager.MinorReadDone(minorSock)
+        socketManager.SocketExceptionOccured(null,null)
         noMoreCyclesCallback(this)
         cycleCallback()
     interface IDataPipe with

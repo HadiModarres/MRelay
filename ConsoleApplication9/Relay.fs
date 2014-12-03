@@ -26,126 +26,70 @@ open IMonitorDelegate
 open System.Collections.Generic
 
 let guidSize = 16 // size of guid in bytes
-let mutable totalAcceptedConnections = 0
 
 type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: int,isMajorOnListen: bool) as this=
-    let lockobj = new obj()
     let socketStoreMap = new Generic.Dictionary<string,Pipe>()
     let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
     let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
-    let lockobj2 = new obj()
-    let lockobj3 = new obj()
-    do
-        listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        listeningSocket.Bind(receiveEndpoint)
-        listeningSocket.Listen(10000)
     let guidReadCallback = new AsyncCallback(this.GUIDReadCallback)
-    
+    let lockobj = new obj()
+    let lockobj2 = new obj()
+    do
+        try
+            listeningSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            listeningSocket.Bind(receiveEndpoint)
+            listeningSocket.Listen(10000)
+        with
+        | _ as e -> printfn "Failed to start relay: %A" e.Message
 
     member this.removePi(pipe: Pipe,a: int)=
-     //   Monitor.Enter lockobj3
+        Monitor.Enter lockobj2
         ignore(socketStoreMap.Remove(System.Text.Encoding.ASCII.GetString(pipe.GUID)))
-//        printfn "pipes in dictionary: %i" socketStoreMap.Count
+     //   printfn "pipes in dictionary: %i" socketStoreMap.Count
+        Monitor.Exit lockobj2
      //   printfn "total accepted: %i" totalAcceptedConnections
 //        for p:Pipe in arr do
 //            p.Test()
        //     printfn "%A" p.GUID
       //  Monitor.Exit lockobj3
 
-    member this.SingleListen2()=
+    member this.SingleListen()=
         while true do
-            Monitor.Enter lockobj2
-            let newSocket = listeningSocket.Accept()
-            totalAcceptedConnections <- (totalAcceptedConnections+1)
-
+            let mutable newSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
+            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
+            newSocket <- listeningSocket.Accept()
             let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
             let newGuid = Guid.NewGuid().ToByteArray()
             socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
             newPipe.GUID <- newGuid
            // printfn "accepted a new connection" 
-            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
-            newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
             newPipe.NewSocketReceived(newSocket)
-            Monitor.Exit lockobj2
 
     member this.StartListening()=
         if  isMajorOnListen = true then
-            this.SingleListen2()
+            this.SingleListen()
             
         else
-            this.MultiListen2() 
+            this.MultiListen() 
         
-//    member this.SingleAccept(e: obj)=
-//        this.SingleListen()
-//
-//        let newPipe = new Pipe(pipeManager,minors,isMajorOnListen)
-//        let newGuid = Guid.NewGuid().ToByteArray()
-//        socketStoreMap.Add(System.Text.Encoding.ASCII.GetString(Array.sub newGuid 0 guidSize),newPipe)
-//        newPipe.GUID <- newGuid
-//        let sc = e :?> SocketAsyncEventArgs
-//        
-//        let newSocket = sc.AcceptSocket
-//        printfn "%A" sc.SocketError
-//
-//        printfn "accepted a new connection" 
-//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
-//        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-//        newPipe.NewSocketReceived(newSocket)
-//    
-//    member this.SingleListen()=
-//        let sc = new SocketAsyncEventArgs()
-//        try
-//            let bo = listeningSocket.AcceptAsync(sc)
-//            if bo = true then
-//                sc.Completed.Add(this.SingleAccept)
-//                
-//            
-//            else
-//                this.SingleAccept(sc)               
-//        with
-//        | _ as e-> printfn "accept exception: %A" e.Message 
-             
-    member this.MultiAccept(e: obj)=
-        this.MultiListen()
-
-        let sc = e :?> SocketAsyncEventArgs
-        let newSocket = sc.AcceptSocket
-        printfn "accepted a new connection : %A" newSocket
-        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
-        newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-
-        let guid = Array.create guidSize (new Byte())
-        try
-            ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
-        with
-        | :? SocketException -> newSocket.Close()
-        | :? ObjectDisposedException -> ()
+               
         
-    member this.MultiListen2()=
+    member this.MultiListen()=
         while true do 
-            let newSocket = listeningSocket.Accept()
-            printfn "accepted a new connection : %A" newSocket
+            let mutable newSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-
+            newSocket <- listeningSocket.Accept()
             let guid = Array.create guidSize (new Byte())
             try
                 ignore(newSocket.BeginReceive(guid,0,guidSize,SocketFlags.None,guidReadCallback,(guid,newSocket)))
             with
-            | :? SocketException -> newSocket.Close()
-            | :? ObjectDisposedException -> ()
+            | _ -> newSocket.Close()
+            
+            
 
-    member this.MultiListen()=
-        
-        try
-            let sc = new SocketAsyncEventArgs()
-            let bo = listeningSocket.AcceptAsync(sc)
-            if bo = true then
-                sc.Completed.Add(this.MultiAccept)
-            else
-                this.MultiAccept(sc)               
-        with
-        | e -> printfn "%A" e.Message
+    
 
 
     member this.GUIDReadCallback(result: IAsyncResult)=
@@ -157,7 +101,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
         try
             let read = socket.EndReceive(result)
             if read <> guidSize then
-                printfn "Couldn't read guid, handle"
+                socket.Close()
             else
                 if socketStoreMap.ContainsKey(System.Text.Encoding.ASCII.GetString(Array.sub guid 0 guidSize)) then
                     ()
@@ -170,10 +114,9 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
             
                 s.NewSocketReceived(socket)
         with 
-        | :? SocketException -> socket.Close()
-        | :? ObjectDisposedException -> ()    
+        | _ -> socket.Close()
+            
         Monitor.Exit lockobj
-
 
 type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCount: int,isMajorOnListen: bool) as this=
     let first (c,_,_) = c
@@ -194,8 +137,8 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
             ignore(s.BeginConnect(forwardRelayAddress,forwardRelayPort,callback,(s,pipe)))
             
         with
-        | :? SocketException -> pipe.Close()
-        | :? ObjectDisposedException -> ()
+        | _  -> pipe.Close()
+        
     member this.ConnectCallback(result: IAsyncResult)=
         let h = result.AsyncState :?> (Socket*Pipe)
         let socket = fst(h)
@@ -208,8 +151,8 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
                 
                 ignore(socket.BeginSend(pipe.GUID,0,pipe.GUID.GetLength(0),SocketFlags.None,sendCallback,(socket,pipe)))
         with 
-        | :? SocketException -> pipe.Close()
-        | :? ObjectDisposedException -> ()
+        | _  -> pipe.Close()
+        
 
     member this.SendCallback(result: IAsyncResult)=
         let h = result.AsyncState :?> (Socket*Pipe)
@@ -219,20 +162,20 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
         try
             let sentCount = socket.EndSend(result)
             if sentCount <> guidSize then
-                printfn "couldn't send guid"
+                pipe.Close()
             else
                 pipe.SocketConnected(socket)
         with       
-        | :? SocketException -> pipe.Close()
-        | :? ObjectDisposedException -> ()
+        | _ -> pipe.Close()
+        
 
 
-type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int,dynamicSegmentSize:int,dynamicMinorBufferSize:int,dynamic: bool, isMajorOnListen: bool ) as this =
+type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress: IPAddress,forwardRelayPort: int,forwardTcpConnectionCount: int,segmentSize: int, minorConnectionBufferSize: int,dynamicSegmentSize:int,dynamicMinorBufferSize:int,dynamic: bool,dynamicThrottleSize: int, isMajorOnListen: bool ) as this =
     let max x y = 
         if x > y then x
         else y
 
-    let throttleSize = 11
+   // let throttleSize = 8
     let mutable monitor = null
 
     let server = new Server(this,listenOnPort,listenTcpConnectionCount,max listenTcpConnectionCount forwardTcpConnectionCount,isMajorOnListen)
@@ -243,7 +186,7 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
     let weakReferences = Generic.List<WeakReference>()
     do  
         if isMajorOnListen && dynamic then
-            monitor <- new Monitor(this,2000)
+            monitor <- new Monitor(this,1500)
             monitor.Start()
         if (listenTcpConnectionCount = 1) || (forwardTcpConnectionCount=1) then 
             server.StartListening()
@@ -288,6 +231,6 @@ type Relay(listenOnPort: int,listenTcpConnectionCount: int, forwardRelayAddress:
 
     interface IMonitorDelegate with
         member x.objectHasReachedActivityCriteria(pipe: obj)=
-            printfn "Acceleration in progress..."
+            printfn "Accelerating..."
             let d = pipe :?> Pipe
-            d.ThrottleUp(throttleSize)
+            d.ThrottleUp(dynamicThrottleSize)

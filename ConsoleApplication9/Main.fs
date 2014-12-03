@@ -38,9 +38,9 @@ let mutable help = false
 let mutable isMajorOnListenSide = -1
 
 
-let mutable dynamicSegmentSize = 1024
-let mutable dynamicMinorBufferSize= 1024*64
-let mutable dynamicConnectionCount= 10
+let mutable dynamicSegmentSize = 1024*4
+let mutable dynamicMinorBufferSize= 1024*256
+let mutable dynamicConnectionCount= 8
 let mutable dynamicSupport=true
 
 
@@ -188,24 +188,24 @@ let main argv =
             
         match encryptTraffic with
         | false ->  // multi relay only, no encryption        
-            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,isListenOnMajor)
+            let r1 = new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,isListenOnMajor)
             let s= System.Console.ReadLine()
             ()
         | true when isListenOnMajor=true ->
-//            let freePort = getAvilablePort()
-//            let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
-//            t1.Start()
-//            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,true))
-//            let s= System.Console.ReadLine()
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
+            t1.Start()
+            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,true))
+            let s= System.Console.ReadLine()
 
-            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
+//            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
             ()
         | true when isListenOnMajor=false ->
-//            let freePort = getAvilablePort()
-//            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,false)))
-//            t1.Start()
-//            ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
-            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+            let freePort = getAvilablePort()
+            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,false)))
+            t1.Start()
+            ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+//            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
             ()
         | _ -> ()
     else if (help = false) then

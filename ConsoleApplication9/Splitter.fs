@@ -92,7 +92,8 @@ type StreamSplitter(socketManager: ISocketManager,majorSocket: Socket, minorSock
             if readCount < 1 then
                 buffer <- null
                 minorStreamQueue.Clear()
-                socketManager.MajorReadDone()
+//                socketManager.MajorReadDone()
+                socketManager.SocketExceptionOccured(null,null)
                 noMoreCyclesCallback(this)
                 cycleCallback()
             else

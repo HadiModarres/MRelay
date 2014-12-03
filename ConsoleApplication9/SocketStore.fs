@@ -125,46 +125,46 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) =
 //            ignore(new Threading.Timer(timerCallback,1,3000,Timeout.Infinite))
 //        with
 //        | _ -> printfn "empty ack failed" ; x.Close()
-    member private x.SyncMajorReadDone() =
-        Monitor.Enter lockobj
-     //   printfn "major read done"
-        if majorReadStatus = true then
-            majorReadStatus <- false
-
-            try
-                for mset in minorSocketSets.ToArray() do
-                    for sock in mset do
-                        sock.Shutdown(SocketShutdown.Send)
-
-            with 
-            | :? SocketException -> x.Close()
-            | :? ObjectDisposedException -> ()
-            if minorSetReadStatus.Count >0 then
-                for i=minorSetReadStatus.Count-1 downto 0 do
-                    let b = minorSetReadStatus.[i] 
-                    if b = false then
-                        x.Close(minorSocketSets.[i])
-//        x.MajorStatusCheck(3) 
-            else
-                x.Close()             
-        Monitor.Exit lockobj
-    member private x.SyncMinorReadDone(set: Socket[])=
-        Monitor.Enter lockobj
-      //  printfn "minor read done"
-        let index = minorSocketSets.IndexOf(set)
-        minorSetReadStatus.[index] <- false
-        try
-            let p = new Predicate<Boolean>(pred)
-            if  Array.TrueForAll<Boolean>(minorSetReadStatus.ToArray(),p) then
-                majorSocket.Shutdown(SocketShutdown.Send)
-            for sock in set do
-                sock.Shutdown(SocketShutdown.Receive)
-        with 
-        | :? SocketException -> x.Close()
-        | :? ObjectDisposedException -> ()
-        if majorReadStatus = false then
-            x.Close(set)
-        Monitor.Exit lockobj
+//    member private x.SyncMajorReadDone() =
+//        Monitor.Enter lockobj
+//     //   printfn "major read done"
+//        if majorReadStatus = true then
+//            majorReadStatus <- false
+//
+//            try
+//                for mset in minorSocketSets.ToArray() do
+//                    for sock in mset do
+//                        sock.Shutdown(SocketShutdown.Send)
+//
+//            with 
+//            | :? SocketException -> x.Close()
+//            | :? ObjectDisposedException -> ()
+//            if minorSetReadStatus.Count >0 then
+//                for i=minorSetReadStatus.Count-1 downto 0 do
+//                    let b = minorSetReadStatus.[i] 
+//                    if b = false then
+//                        x.Close(minorSocketSets.[i])
+////        x.MajorStatusCheck(3) 
+//            else
+//                x.Close()             
+//        Monitor.Exit lockobj
+//    member private x.SyncMinorReadDone(set: Socket[])=
+//        Monitor.Enter lockobj
+//      //  printfn "minor read done"
+//        let index = minorSocketSets.IndexOf(set)
+//        minorSetReadStatus.[index] <- false
+//        try
+//            let p = new Predicate<Boolean>(pred)
+//            if  Array.TrueForAll<Boolean>(minorSetReadStatus.ToArray(),p) then
+//                majorSocket.Shutdown(SocketShutdown.Send)
+//            for sock in set do
+//                sock.Shutdown(SocketShutdown.Receive)
+//        with 
+//        | :? SocketException -> x.Close()
+//        | :? ObjectDisposedException -> ()
+//        if majorReadStatus = false then
+//            x.Close(set)
+//        Monitor.Exit lockobj
     
     member x.Close(set: Socket[])=
         Monitor.Enter lockobj
@@ -188,10 +188,18 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) =
             for mset in minorSocketSets.ToArray() do
                     for sock in mset do
                         if sock <> null then
+                            try
+                                sock.Shutdown(SocketShutdown.Both)
+                            with
+                            |_ -> ()
                             sock.Close()    
             minorSetReadStatus.Clear()
             minorSocketSets.Clear()
             if majorSocket <> null then
+                try
+                    majorSocket.Shutdown(SocketShutdown.Both)
+                with 
+                | _ -> ()
                 majorSocket.Close()
             closed <- true
             socketStoreClosedCallback()
@@ -202,11 +210,13 @@ type SocketStore(socketStoreClosedCallback: unit -> unit) =
     
     interface ISocketManager with
         member x.MajorReadDone() =
-            if closed = false then
-                x.SyncMajorReadDone() 
+//            if closed = false then
+//                x.SyncMajorReadDone() 
+            ()
         member x.MinorReadDone(set: Socket[]) =
-            if closed = false then
-                x.SyncMinorReadDone(set)
+//            if closed = false then
+//                x.SyncMinorReadDone(set)
+            ()
         member x.SocketExceptionOccured(socket: Socket,exc: Exception) =
       //      printfn "socket exception: %A %A" sock exc.Message 
       //      x.Close() // should the whole pipe be closed with every socket exception?           

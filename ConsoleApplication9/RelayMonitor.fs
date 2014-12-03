@@ -86,9 +86,9 @@ type Monitor(deleg: IMonitorDelegate,period: int) as x =
     
     do  
 
-        criteria.Add(new Criterion(CriterionType.ConstantActivity,4000))  // for a member to match this criteria it must have had a constant activity for at least 4 seconds
+        criteria.Add(new Criterion(CriterionType.ConstantActivity,3000))  // for a member to match this criteria it must have had a constant activity for at least 4 seconds
 //        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,1*1024*1024)) // for a member to match this criteria it must have moved at least 1MB of data
-        criteria.Add(new Criterion(CriterionType.ConstantTransferExceeds,1024*1024)) // for a member to match this, it must move 1MB of data actively(without stop)
+        criteria.Add(new Criterion(CriterionType.TotalTransferExceeds,700*1024)) // for a member to match this, it must move 1MB of data actively(without stop)
                                                                                        
                                                                                        //   so for a pipe to be considered a stream or download pipe it must remain active for at least
                                                                                        //   4 seconds and move 1MB actively, so for example for a very fast connection that loads website instantly,
