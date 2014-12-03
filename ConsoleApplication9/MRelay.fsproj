@@ -27,7 +27,7 @@
     <Prefer32Bit>true</Prefer32Bit>
     <OtherFlags>
     </OtherFlags>
-    <StartArguments>-fa=149.210.142.87 -fp=4501 -cr=true -encrypt=true</StartArguments>
+    <StartArguments>-ra=149.210.142.87 -rp=4501 -cr=true -encrypt=true</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

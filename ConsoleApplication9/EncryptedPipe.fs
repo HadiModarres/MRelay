@@ -18,32 +18,47 @@ open System.Net.Sockets
 open System.Threading
 open System.Security.Cryptography
 
-let mutable totalPipes = 0
+let lockobj = new obj()
+let mutable totalP = 0
 let mutable closedPipes= 0
-type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket1: Socket, socket2: Socket,encryptReceive: bool) = 
+type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket1: Socket, socket2: Socket,encryptReceive: bool) as x= 
     let mutable dataDone=0
-    let lockobj = new obj()
     let keyIV = Array.create 256 (0uy)
     let mutable key = null
     let mutable iv = null
     let mutable closed = false
        
+    do
+        x.intr()
 
-    
-    member x.Close() =       
+    member x.intr()=
+        Monitor.Enter lockobj
+        totalP <- totalP+1
+        Monitor.Exit lockobj
+    member x.Close() =      
         if closed = false then
             closed <- true
-            closedPipes <- closedPipes+1
+            Monitor.Enter lockobj 
+            
+            totalP<- totalP-1
+            printfn "total %i" totalP
+            Monitor.Exit lockobj
+
+            try
+                socket1.Shutdown(SocketShutdown.Both)
+                socket2.Shutdown(SocketShutdown.Both)
+            with 
+            |_ -> ()
             socket1.Close()
             socket2.Close()
             receiveStream.Dispose()
             sendStream.Dispose()               
-    member x.DataDone() =
-            Monitor.Enter lockobj
-            dataDone <- dataDone+1
-            if dataDone = 2 then
-                x.Close()
-            Monitor.Exit lockobj
+//    member x.DataDone() =
+//            Monitor.Enter lockobj
+//            dataDone <- dataDone+1
+//            if dataDone = 2 then
+//                x.Close()
+//            Monitor.Exit lockobj
 
     member x.GetStreamThatNeedsEncryption() =
         if encryptReceive = true then
@@ -57,22 +72,22 @@ type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket
         else 
             receiveStream
 
-    member x.ShutdownEncryptDirection() =
-        if encryptReceive = true then
-            socket2.Shutdown(SocketShutdown.Send)
-        else
-            receiveStream.Flush()
-            socket1.Shutdown(SocketShutdown.Send)
-            
-        x.DataDone()
-
-    member x.ShutdownDecryptDirection() =
-
-        if encryptReceive = true then
-            socket1.Shutdown(SocketShutdown.Send)
-        else
-            socket2.Shutdown(SocketShutdown.Send)
-        x.DataDone()
+//    member x.ShutdownEncryptDirection() =
+//        if encryptReceive = true then
+//            socket2.Shutdown(SocketShutdown.Send)
+//        else
+//            receiveStream.Flush()
+//            socket1.Shutdown(SocketShutdown.Send)
+//            
+//        x.DataDone()
+//
+//    member x.ShutdownDecryptDirection() =
+//
+//        if encryptReceive = true then
+//            socket1.Shutdown(SocketShutdown.Send)
+//        else
+//            socket2.Shutdown(SocketShutdown.Send)
+//        x.DataDone()
 
 
     member x.KeyIV

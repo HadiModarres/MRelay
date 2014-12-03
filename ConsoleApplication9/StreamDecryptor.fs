@@ -39,7 +39,7 @@ type StreamDecryptor(pipe: EncryptedPipe) as this =
         with
         | e-> pipe.Close()
     member this.bytesRead(completedTask: Task<int>)=
-        if completedTask.Exception <> null then
+        if completedTask.IsFaulted then
         
             pipe.Close()    
         else
@@ -54,13 +54,10 @@ type StreamDecryptor(pipe: EncryptedPipe) as this =
                 with
                 | e-> pipe.Close()
     member this.closeSockets(completedTask: Task)=
-        if (completedTask.Exception <> null) then
-            pipe.Close()
-        else
-            pipe.ShutdownDecryptDirection()
+        pipe.Close()
 
     member this.bytesSent(completedTask: Task)=
-        if completedTask.Exception <> null then
+        if completedTask.IsFaulted then
             pipe.Close()
         else
             try

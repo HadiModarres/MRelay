@@ -36,6 +36,11 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
     let mutable aes = AesManaged.Create()
 
     let connectCallback = new AsyncCallback(this.ConnectCallback)
+    let at3 = new Action<Task,obj>(this.encryptedKeyIVSent)
+    let at4 = new Action<Task,obj>(this.keyIVRead)
+    let at = new Action<Task<string>,obj>(this.publicKeyReceived)
+    let at2 = new Action<Task,obj>(this.publicKeySent)
+    let lockobj = new obj()
 
     do
         this.StartListening()
@@ -55,95 +60,18 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
                 let s = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
                 s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
                 s.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
-                ignore(s.BeginConnect(forwardAddress,forwardPort,connectCallback,(receivedSocket,s)))
+                try
+                    ignore(s.BeginConnect(forwardAddress,forwardPort,connectCallback,(receivedSocket,s)))
+                with
+                | _ -> s.Close();receivedSocket.Close()
         with
         | e -> printfn "Failed to start encrypted relay: %A" e.Message
 
     member this.ConnectCallback(result:IAsyncResult) =
-        
+        Monitor.Enter lockobj
         let h = result.AsyncState :?> (Socket * Socket)
         let receivedSocket = fst(h)
         let newSocket = snd(h)
-       
-
-        let obj3 = new obj()
-        let encryptedKeyIVSent (completedTask: Task) (pipe:obj) =
-            Monitor.Enter obj3
-
-            let p = pipe :?> EncryptedPipe
-            if completedTask.Exception <> null then
-                p.Close()
-            else
-                ignore(new StreamDecryptor(p))
-                ignore(new StreamEncryptor(p))
-
-
-            Monitor.Exit obj3
-
-        let at3 = new Action<Task,obj>(encryptedKeyIVSent)
-
-        let obj2 = new obj()
-        let publicKeyReceived (completedTask: Task<string>) ( pipe: obj) =
-            Monitor.Enter obj2
-            let p = pipe :?> EncryptedPipe
-            if completedTask.Exception <> null then
-                 p.Close()
-            else
-                try
-                    rsa.FromXmlString(completedTask.Result)
-                    let encryptedSymmetricKey = rsa.Encrypt(p.Key,false)
-                    let encryptedSymmetricIV = rsa.Encrypt(p.Iv,false)
-                    let encKeyIV = Array.append encryptedSymmetricKey encryptedSymmetricIV
-                    let stream = p.GetStreamThatNeedsDecryption()
-                    ignore(stream.WriteAsync(encKeyIV,0,encKeyIV.GetLength(0)).ContinueWith(at3,p))
-                with
-                | e -> p.Close() 
-            Monitor.Exit obj2
-
-        let obj5 = new obj()
-        let keyIVRead(completedTask:Task) (pipe: obj)=
-            
-            Monitor.Enter obj5
-            let p = pipe :?> EncryptedPipe
-            if completedTask.Exception <> null then
-                p.Close()
-            else
-                try
-                    let key = Array.create 128 (new Byte())
-                    let iv =  Array.create 128 (new Byte())
-                    Array.blit p.KeyIV 0 key 0 128
-                    Array.blit p.KeyIV 128 iv 0 128
-                    p.Key <- rsa.Decrypt(key,false)
-                    p.Iv <- rsa.Decrypt(iv,false)
-                    ignore(new StreamDecryptor(p))
-
-                    ignore(new StreamEncryptor(p))
-                with
-                | e-> p.Close()
-            Monitor.Exit obj5
-
-
-        let at4 = new Action<Task,obj>(keyIVRead)
-        let obj4 = new obj()
-        let publicKeySent (completedTask: Task) ( pipe: obj) =
-            Monitor.Enter obj4
-            let p = pipe :?> EncryptedPipe
-            if completedTask.Exception <> null then
-                p.Close()
-            else
-                try
-                    ignore(p.GetStreamThatNeedsDecryption().ReadAsync(p.KeyIV,0,256).ContinueWith(at4,p))
-                with
-                | e-> p.Close()
-            Monitor.Exit obj4
-        
-        let at = new Action<Task<string>,obj>(publicKeyReceived)
-        let at2 = new Action<Task,obj>(publicKeySent)
-
-        let obj1 = new obj()
-      //  do
-      
-        Monitor.Enter obj1
         try 
             newSocket.EndConnect(result)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
@@ -171,5 +99,67 @@ type EncryptedRelay(listenOnPort: int,forwardAddress:IPAddress,forwardPort:int,e
                 
         with
         | e -> newSocket.Close(); receivedSocket.Close()
-        Monitor.Exit obj1
-    
+        Monitor.Exit lockobj
+       
+
+    member this.encryptedKeyIVSent (completedTask: Task) (pipe:obj) =
+
+        let p = pipe :?> EncryptedPipe
+        if completedTask.IsFaulted then
+            p.Close()
+        else
+            ignore(new StreamDecryptor(p))
+            ignore(new StreamEncryptor(p))
+
+
+
+
+    member this.publicKeyReceived (completedTask: Task<string>) ( pipe: obj) =
+        Monitor.Enter lockobj
+        let p = pipe :?> EncryptedPipe
+        if completedTask.IsFaulted then
+                p.Close()
+        else
+            try
+                rsa.FromXmlString(completedTask.Result)
+                let encryptedSymmetricKey = rsa.Encrypt(p.Key,false)
+                let encryptedSymmetricIV = rsa.Encrypt(p.Iv,false)
+                let encKeyIV = Array.append encryptedSymmetricKey encryptedSymmetricIV
+                let stream = p.GetStreamThatNeedsDecryption()
+                ignore(stream.WriteAsync(encKeyIV,0,encKeyIV.GetLength(0)).ContinueWith(at3,p))
+            with
+            | e -> p.Close() 
+        Monitor.Exit lockobj
+
+    member this.keyIVRead(completedTask:Task) (pipe: obj)=
+        Monitor.Enter lockobj
+        let p = pipe :?> EncryptedPipe
+        if completedTask.IsFaulted then
+            p.Close()
+        else
+            try
+                let key = Array.create 128 (new Byte())
+                let iv =  Array.create 128 (new Byte())
+                Array.blit p.KeyIV 0 key 0 128
+                Array.blit p.KeyIV 128 iv 0 128
+                p.Key <- rsa.Decrypt(key,false)
+                p.Iv <- rsa.Decrypt(iv,false)
+                ignore(new StreamDecryptor(p))
+
+                ignore(new StreamEncryptor(p))
+            with
+            | e-> p.Close()
+        Monitor.Exit lockobj
+
+    member this.publicKeySent (completedTask: Task) ( pipe: obj) =
+        let p = pipe :?> EncryptedPipe
+        if completedTask.IsFaulted then
+            p.Close()
+        else
+            try
+                ignore(p.GetStreamThatNeedsDecryption().ReadAsync(p.KeyIV,0,256).ContinueWith(at4,p))
+            with
+            | e-> p.Close()
+        
+      //  do
+      
