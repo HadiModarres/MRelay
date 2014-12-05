@@ -39,7 +39,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
     let minorReadCallback = new AsyncCallback(this.DataReceiveToMinorSocket)
     let minorSendCallback = new AsyncCallback(this.DataSendToMinorSocket)
     let socketStore = new SocketStore(this.SocketStoreClosed)
-    let mutable guid: byte[] = null
+    let mutable guid: string = null
     let mutable throttleUpSize = 0
     let mergerChain = new CycleManager()
     let splitterChain = new CycleManager()
@@ -73,7 +73,7 @@ type Pipe(pipeManager: IPipeManager,minorCount: int,isMajorSocketOnRelayListenSi
         ignore(this.ThrottleUp(20))
     member this.GUID 
         with get() = guid
-        and set(gui: byte[]) = guid <- gui
+        and set(gui: string) = guid <- gui
 
     member public this.NewSocketReceived(socket: Socket)= 
         Monitor.Enter lockobj

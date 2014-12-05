@@ -41,7 +41,7 @@ type EncryptedPipe(receiveStream: NetworkStream,sendStream: NetworkStream,socket
             Monitor.Enter lockobj 
             
             totalP<- totalP-1
-        //    printfn "total %i" totalP
+            printfn "total %i" totalP
             Monitor.Exit lockobj
 
             try

@@ -54,6 +54,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="HttpHeaderFactory.fs" />
     <Compile Include="IMonitorDelegate.fs" />
     <Compile Include="ICycle.fs" />
     <Compile Include="PipeStates.fs" />
