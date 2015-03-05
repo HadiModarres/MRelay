@@ -22,7 +22,7 @@ Windows Vista or later.
 Mono version 3.10.0 or later (if running on Linux)
 
 
-#### [MRelay Demo](http://youtu.be/o1wa1f5FjCE)
+#### More info at: [https://sourceforge.net/projects/mrelay/]
 
 
 
