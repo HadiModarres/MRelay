@@ -21,6 +21,7 @@ open NDesk.Options
 open EncryptedRelay
 open phelix
 open System.Threading
+open HttpTunnelRelay
 
 
 
@@ -171,8 +172,10 @@ let argValidity()=
 
     valid
 
+
+
+
 [<EntryPoint>]
-   
 let main argv = 
   //  try
     ignore(processArgs(argv))
@@ -193,18 +196,31 @@ let main argv =
             ()
         | true when isListenOnMajor=true ->
             let freePort = getAvilablePort()
+            let freePort2 = getAvilablePort()
             let t1 = new Thread(fun () -> ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort,true)))
             t1.Start()
-            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,true))
+            
+            let t2 = new Thread(fun () -> ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort2,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,true)))
+            t2.Start()
+            
+            ignore(new HttpTunnelRelay(freePort2,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
+
+//            ignore(new Relay(freePort,listenTcpCount,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,true))
             let s= System.Console.ReadLine()
 
 //            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,true))
             ()
         | true when isListenOnMajor=false ->
             let freePort = getAvilablePort()
-            let t1 = new Thread(fun () -> ignore(new Relay(listenOnPort,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,false)))
+            let freePort2 = getAvilablePort()
+            
+            let t2 = new Thread(fun () -> ignore(new HttpTunnelRelay(listenOnPort,Dns.GetHostAddresses("127.0.0.1").[0],freePort2,false)))
+            t2.Start()
+            
+            let t1 = new Thread(fun () -> ignore(new Relay(freePort2,listenTcpCount,Dns.GetHostAddresses("127.0.0.1").[0],freePort,forwardTcpCount,segmentSize,minorSocketBufferSize,dynamicSegmentSize,dynamicMinorBufferSize,dynamicSupport,dynamicConnectionCount,false)))
             t1.Start()
             ignore(new EncryptedRelay(freePort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
+
 //            ignore(new EncryptedRelay(listenOnPort,Dns.GetHostAddresses(forwardAddress).[0],forwardPort,false))
             ()
         | _ -> ()

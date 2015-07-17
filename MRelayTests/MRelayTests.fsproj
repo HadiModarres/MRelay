@@ -62,10 +62,17 @@
     <None Include="App.config" />
     <None Include="MSTest.runsettings" />
     <Compile Include="RelayTest.fs" />
+    <Compile Include="HttpTunnelTest.fs" />
     <Compile Include="EncryptedRelayTest.fs" />
     <Compile Include="TestTypes.fs" />
     <Compile Include="MonitorTest.fs" />
     <None Include="MRelayTests.licenseheader" />
+    <Compile Include="DataDelegate.fs" />
+    <Compile Include="IDataPath.fs" />
+    <Compile Include="Client.fs" />
+    <Compile Include="Server.fs" />
+    <Compile Include="HttpTunnelTestSetup.fs" />
+    <Compile Include="ReliabilityTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConsoleApplication9\MRelay.fsproj">

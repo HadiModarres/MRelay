@@ -72,6 +72,8 @@
     <Compile Include="Relay.fs" />
     <Compile Include="StreamEncryptor.fs" />
     <Compile Include="StreamDecryptor.fs" />
+    <Compile Include="TunnelPipe.fs" />
+    <Compile Include="HttpTunnelRelay.fs" />
     <Compile Include="EncryptedRelay.fs" />
     <Compile Include="RSAPerformanceTest.fs" />
     <Compile Include="Main.fs" />

@@ -29,6 +29,7 @@ open HttpHeaderFactory
 let guidSize = 16 // size of guid in bytes
 
 type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: int,isMajorOnListen: bool) as this=
+    
     let socketStoreMap = new Generic.Dictionary<string,Pipe>()
     let listeningSocket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp)
     let receiveEndpoint = new System.Net.IPEndPoint(IPAddress.Any,listenOnPort)
@@ -86,7 +87,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.NoDelay,true)
             newSocket.SetSocketOption(SocketOptionLevel.Socket,SocketOptionName.KeepAlive,true)
             newSocket <- listeningSocket.Accept()
-            let request= Array.create (HeaderFactory.GetRequestSize()) 0uy
+            let request= Array.create (HeaderFactory.GetRequestSizeTest()) 0uy
             try
                 ignore(newSocket.BeginReceive(request,0,request.GetLength(0),SocketFlags.None,guidReadCallback,(request,newSocket)))
             with
@@ -105,10 +106,10 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
 
         try
             let read = socket.EndReceive(result)
-            if read <> HeaderFactory.GetRequestSize() then
+            if read <> HeaderFactory.GetRequestSizeTest() then
                 socket.Close()
             else
-                let gu = HeaderFactory.HttpToGuid(System.Text.Encoding.ASCII.GetString(request))
+                let gu = HeaderFactory.HttpToGuidTest(System.Text.Encoding.ASCII.GetString(request))
                 if socketStoreMap.ContainsKey(gu) then
                     ()
                 
@@ -117,7 +118,7 @@ type Server(pipeManager: IPipeManager,listenOnPort: int,tcpCount: int,minors: in
                     socketStoreMap.Add(gu,newPipe)
                     newPipe.GUID <- gu
                 let s = socketStoreMap.[gu]
-                let b = HeaderFactory.GetResponseHeader()
+                let b = HeaderFactory.GetResponseHeaderTest()
                 try
                     ignore(socket.BeginSend(b,0,b.GetLength(0),SocketFlags.None,null,null))
                 with
@@ -160,7 +161,8 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
             if isMajorOnListen = false then
                 pipe.SocketConnected(socket)
             else
-                let b = HeaderFactory.GuidToHttp(pipe.GUID)
+                let b = HeaderFactory.GuidToHttpTest(pipe.GUID)
+               // let k = b.GetLength(0)
                 ignore(socket.BeginSend(b,0,b.GetLength(0),SocketFlags.None,sendCallback,(socket,pipe)))
         with 
         | _  -> pipe.Close()
@@ -173,10 +175,10 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
        
         try
             let sentCount = socket.EndSend(result)
-            if sentCount <> HeaderFactory.GetRequestSize() then
+            if sentCount <> HeaderFactory.GetRequestSizeTest() then
                 pipe.Close()
             else
-                let b = Array.create (HeaderFactory.getResponseSize()) 0uy
+                let b = Array.create (HeaderFactory.getResponseSizeTest()) 0uy
             //    try
                 ignore(socket.BeginReceive(b,0,b.GetLength(0),SocketFlags.None,responseReceiveCallback,(socket,pipe)))
              //   with
@@ -190,7 +192,7 @@ type private Client(forwardRelayAddress: IPAddress,forwardRelayPort: int,tcpCoun
         let pipe = snd(h)
         try
             let readCount = socket.EndReceive(result)
-            if readCount <> HeaderFactory.getResponseSize() then
+            if readCount <> HeaderFactory.getResponseSizeTest() then
                 pipe.Close()
             else
                 pipe.SocketConnected(socket)
